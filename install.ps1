@@ -1,4 +1,4 @@
-# media-review 安装器：装 skill 到 ~/.claude/skills/，检查 Python 依赖
+﻿# media-review 安装器：装 skill 到 ~/.claude/skills/，检查 Python 依赖
 # 用法：powershell -ExecutionPolicy Bypass -File install.ps1
 
 $ErrorActionPreference = "Stop"
