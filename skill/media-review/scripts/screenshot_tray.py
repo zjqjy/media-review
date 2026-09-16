@@ -7,8 +7,9 @@
 操作：截图（Win+Shift+S 等）→ 本窗口置顶 → 填期数 → 点窗口/按 Ctrl+V 连续贴
       → 平台下拉标注 → 点"完成收集"退出。
 
-保存结构（分平台分期数，AI 后整理兜底）：
-  <dir>/<期数>/<平台|时间戳>.png
+保存结构（分平台分期数物理隔离，AI 后整理兜底）：
+  <dir>/<期数>/<平台>/<时间戳>.png
+  平台未标注时归 <期数>/未标平台/
 
 依赖：Pillow（pip install pillow）。剪贴板无图时提示，不打断。
 """
@@ -25,7 +26,6 @@ except ImportError:
     raise SystemExit("缺依赖：pip install pillow")
 
 PLATFORMS = ["未标平台", "抖音", "小红书", "B站"]
-PLATFORM_TAG = {"未标平台": "", "抖音": "抖音", "小红书": "小红书", "B站": "B站"}
 
 
 class Collector(tk.Tk):
@@ -68,7 +68,7 @@ class Collector(tk.Tk):
         return name or "未分期"
 
     def _hint_text(self):
-        return f"已收集 {self.count} 张 → {self._episode()}/"
+        return f"已收集 {self.count} 张 → {self._episode()}/{self.platform.get()}/"
 
     def paste(self, _event=None):
         img = ImageGrab.grabclipboard()
@@ -77,17 +77,14 @@ class Collector(tk.Tk):
                              fg="#c0392b")
             self.after(2500, lambda: self.hint.config(text=self._hint_text(), fg="#555"))
             return
-        tag = PLATFORM_TAG.get(self.platform.get(), "")
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        name = f"{tag}_{ts}.png" if tag else f"{ts}.png"
-        # 分期数子目录落盘
-        ep_dir = self.target_dir / self._episode()
-        ep_dir.mkdir(parents=True, exist_ok=True)
-        target = ep_dir / name
+        # 分期数+分平台双级目录：切换平台下拉即切目录，不混
+        plat_dir = self.target_dir / self._episode() / self.platform.get()
+        plat_dir.mkdir(parents=True, exist_ok=True)
+        target = plat_dir / f"{ts}.png"
         i = 1
         while target.exists():
-            base = f"{tag}_{ts}-{i}.png" if tag else f"{ts}-{i}.png"
-            target = ep_dir / base
+            target = plat_dir / f"{ts}-{i}.png"
             i += 1
         img.save(target)
         self.count += 1

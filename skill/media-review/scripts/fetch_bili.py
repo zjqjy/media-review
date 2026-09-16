@@ -10,7 +10,9 @@
   python fetch_bili.py list                      # 投稿列表 + 观察点清算
   python fetch_bili.py diagnose [--size 50]      # 近 N 条视频诊断（完播/CTR/涨粉）
   python fetch_bili.py overview                  # 账号基线（粉丝数等）
-  python fetch_bili.py playsource                # 播放来源占比（账号级）
+  python fetch_bili.py playsource                # 播放来源占比（账号级；2026-09 已失效，见 retention）
+  python fetch_bili.py retention --bvid BVxx     # 单稿件深度数据：流失曲线(逐5秒,含同类对照)
+                                                 # + B站 AI 解读 + 稿件详情（可 --cid 指定分P）
   通用参数：--config PATH（默认自动找 vault 侧 _config_local.json）
            --out FILE（默认写 vault/20_自媒体/复盘/_data/，- 表示 stdout）
            --dry-run（只打印不写盘）
@@ -33,15 +35,25 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
 API = {
-    # 稿件列表（自己的投稿）：Archive{aid,bvid,title,ptime,ctime} + stat{view,like,...}
+    # 稿件列表（自己的投稿）：stat{view,like,...}
+    # 注意 2026-09 实测：该接口已不再返回发布时间（ptime/ctime/online_time 全 0），
+    # pubtime 由 backfill_pubtime() 从 diagnose 按 bvid 回填
     "list": "https://member.bilibili.com/x2/creative/web/archives/sp",
     # 近 N 条视频诊断：full_play_ratio 完播比 / crash_rate 3秒退出率 /
     # tm_rate 封标点击率 / total_new_attention_cnt 涨粉（百分比字段 10000=100%）
     "diagnose": "https://member.bilibili.com/x/web/data/archive_diagnose/compare",
     # 账号总览：total_fans 粉丝基线 + 各类增量
     "overview": "https://member.bilibili.com/x/web/index/stat",
-    # 播放来源占比（账号级）：page_source{推荐/搜索/动态/空间…} + play_proportion{平台}
+    # 播放来源占比（账号级）：2026-09 实测已失效（code 0 但 data null）——
+    # 且 v3 数据中心「流量分析」已无"来源分布"功能，属产品下线，无法恢复。
+    # 替代数据见 retention（逐5秒流失曲线 + AI 解读 + 稿件详情）
     "playsource": "https://member.bilibili.com/x/web/data/playsource",
+    # 单稿件详情：pubtime/cid/duration/分P（2026-09 CDP 实测，纯 SESSDATA 即可）
+    "view": "https://member.bilibili.com/x/web/data/v3/archive/view",
+    # 逐5秒观众退出曲线 + 同类对照（viewer_quit / peer_viewer_quit，num 为人数）
+    "retention_graph": "https://member.bilibili.com/x/web/data/v2/archive/analyze/graph",
+    # B站 AI 数据解读（viewer_assistant/arc_audience/星级评分/tip 文案）
+    "play_analyze": "https://member.bilibili.com/x/web/data/archive_diagnose/play_analyze",
 }
 
 # 二维码登录（passport，免 Cookie）。文档：bilibili-API-collect docs/login/login_action/QR.md
@@ -179,6 +191,20 @@ def convert_rates(items):
     return items or []
 
 
+def convert_rates_nested(o):
+    """convert_rates 的递归版：play_analyze 等接口比率字段嵌在子结构里。"""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k.endswith(("_rate", "_ratio")) and isinstance(v, (int, float)):
+                o[k] = round(v / 10000, 4)
+            else:
+                convert_rates_nested(v)
+    elif isinstance(o, list):
+        for x in o:
+            convert_rates_nested(x)
+    return o
+
+
 def fetch_diagnose(sessdata, size=50):
     """近 size 条视频的诊断数据（完播/退出率/CTR/涨粉）。"""
     data = api_get(API["diagnose"], {"size": size}, sessdata)
@@ -193,6 +219,35 @@ def fetch_overview(sessdata):
 def fetch_playsource(sessdata):
     """播放来源占比（账号级，单视频无此粒度，复盘时作参考）。"""
     return api_get(API["playsource"], None, sessdata) or {}
+
+
+def backfill_pubtime(archives, sessdata, size=50):
+    """archives/sp 已不返回发布时间（2026-09 实测 ptime/ctime/online_time 全 0），
+    从 diagnose 按 bvid 回填 pubtime。diagnose 只覆盖最近 size 条，更早的仍是缺失，
+    compute_watchpoints 会跳过（宁可漏算不可错算）。"""
+    missing = [a for a in archives if not a.get("pubtime")]
+    if not missing:
+        return archives
+    pub = {d["bvid"]: d.get("pubtime")
+           for d in fetch_diagnose(sessdata, size=size)}
+    for a in missing:
+        a["pubtime"] = pub.get(a.get("bvid"))
+    return archives
+
+
+def fetch_retention(sessdata, bvid, cid=None):
+    """单稿件深度数据（v3 数据中心三件套，替代已下线的 playsource）：
+    view 稿件详情（pubtime/cid/时长/分P）+ graph 逐5秒流失曲线（含同类对照）
+    + play_analyze B站 AI 解读。graph 需要 cid，缺省从详情取第一分P。"""
+    view = api_get(API["view"], {"bvid": bvid}, sessdata) or {}
+    if not cid:
+        pparts = view.get("videos") or []
+        cid = (pparts[0] or {}).get("cid") if pparts else None
+    graph = (api_get(API["retention_graph"], {"cid": cid}, sessdata)
+             if cid else {})
+    analyze = api_get(API["play_analyze"], {"bvid": bvid}, sessdata) or {}
+    convert_rates_nested(analyze)  # play_analyze 内比率字段同为 10000=100%
+    return {"view": view, "analyze": analyze, "graph": graph}
 
 
 # ---------------------------------------------------------------- login（扫码）
@@ -317,10 +372,12 @@ def emit(payload, out, data_dir, dry=False):
 
 def main():
     ap = argparse.ArgumentParser(description="B站创作中心数据拉取（仅自己账号）")
-    ap.add_argument("command", choices=["list", "diagnose", "overview", "playsource", "login"])
+    ap.add_argument("command", choices=["list", "diagnose", "overview", "playsource", "retention", "login"])
     ap.add_argument("--config", help="_config_local.json 路径")
     ap.add_argument("--out", default=None, help="输出文件名（默认 <命令>_YYYYMMDD.json，- 为 stdout）")
     ap.add_argument("--size", type=int, default=50, help="diagnose 拉最近 N 条（默认 50）")
+    ap.add_argument("--bvid", help="retention：稿件 BV 号")
+    ap.add_argument("--cid", type=int, default=None, help="retention：分P cid（缺省取第一分P）")
     ap.add_argument("--dry-run", action="store_true", help="不写盘")
     args = ap.parse_args()
 
@@ -340,7 +397,7 @@ def main():
     out = args.out or f"{args.command}_{date.today():%Y%m%d}.json"
 
     if args.command == "list":
-        archives = fetch_all_archives(cfg["sessdata"])
+        archives = backfill_pubtime(fetch_all_archives(cfg["sessdata"]), cfg["sessdata"], args.size)
         payload = {
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
             "total": len(archives),
@@ -354,8 +411,18 @@ def main():
                    "list": fetch_diagnose(cfg["sessdata"], args.size)}
         print(f"[fetch_bili] 诊断数据 {len(payload['list'])} 条", file=sys.stderr)
     elif args.command == "playsource":
+        src = fetch_playsource(cfg["sessdata"])
+        if not src:
+            print("[fetch_bili] 警告：playsource 返回空（2026-09-16 实测该端点已失效，v3 数据中心"
+                  "已下线『来源分布』功能）——替代数据用 retention 子命令", file=sys.stderr)
         payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
-                   "playsource": fetch_playsource(cfg["sessdata"])}
+                   "playsource": src}
+    elif args.command == "retention":
+        if not args.bvid:
+            die("retention 需要 --bvid BV号（如 --bvid BV1tseJ64EYe）")
+        payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
+                   "retention": fetch_retention(cfg["sessdata"], args.bvid, args.cid)}
+        print(f"[fetch_bili] 稿件详情+流失曲线+AI解读 {args.bvid}", file=sys.stderr)
     else:
         payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
                    "overview": fetch_overview(cfg["sessdata"])}
