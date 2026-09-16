@@ -30,7 +30,7 @@ python scripts/fetch_bili.py list --config "<vault>/20_自媒体/复盘/_config_
 
 ### 2. 取数
 
-- **B站**：`fetch_bili.py diagnose --config ...`（完播率/3秒退出率/CTR/涨粉，按 bvid 与 list 的 stat 合并）；首跑或用户问基线时再跑 `overview`（总粉丝数，算播放基线：粉丝基数小的号播放浮动大，别用绝对值吓人）
+- **B站**：`fetch_bili.py diagnose --config ...`（完播率/3秒退出率/CTR/涨粉，按 bvid 与 list 的 stat 合并）；首跑或用户问基线时再跑 `overview`（总粉丝数，算播放基线：粉丝基数小的号播放浮动大，别用绝对值吓人）；判断选题/分发问题时可跑 `playsource`（播放来源占比，**账号级**数据，只作参考不作单视频归因依据）
 - **抖音/小红书**：启动收集窗（后台、不阻塞）：
 
 ```bash

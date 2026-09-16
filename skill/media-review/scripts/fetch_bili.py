@@ -36,6 +36,8 @@ API = {
     "diagnose": "https://member.bilibili.com/x/web/data/archive_diagnose/compare",
     # 账号总览：total_fans 粉丝基线 + 各类增量
     "overview": "https://member.bilibili.com/x/web/index/stat",
+    # 播放来源占比（账号级）：page_source{推荐/搜索/动态/空间…} + play_proportion{平台}
+    "playsource": "https://member.bilibili.com/x/web/data/playsource",
 }
 
 
@@ -171,6 +173,11 @@ def fetch_overview(sessdata):
     return api_get(API["overview"], None, sessdata) or {}
 
 
+def fetch_playsource(sessdata):
+    """播放来源占比（账号级，单视频无此粒度，复盘时作参考）。"""
+    return api_get(API["playsource"], None, sessdata) or {}
+
+
 # ---------------------------------------------------------------- 输出
 
 def emit(payload, out, data_dir, dry=False):
@@ -190,7 +197,7 @@ def emit(payload, out, data_dir, dry=False):
 
 def main():
     ap = argparse.ArgumentParser(description="B站创作中心数据拉取（仅自己账号）")
-    ap.add_argument("command", choices=["list", "diagnose", "overview"])
+    ap.add_argument("command", choices=["list", "diagnose", "overview", "playsource"])
     ap.add_argument("--config", help="_config_local.json 路径")
     ap.add_argument("--out", default=None, help="输出文件名（默认 <命令>_YYYYMMDD.json，- 为 stdout）")
     ap.add_argument("--size", type=int, default=50, help="diagnose 拉最近 N 条（默认 50）")
@@ -216,6 +223,9 @@ def main():
         payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
                    "list": fetch_diagnose(cfg["sessdata"], args.size)}
         print(f"[fetch_bili] 诊断数据 {len(payload['list'])} 条", file=sys.stderr)
+    elif args.command == "playsource":
+        payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
+                   "playsource": fetch_playsource(cfg["sessdata"])}
     else:
         payload = {"fetched_at": datetime.now().isoformat(timespec="seconds"),
                    "overview": fetch_overview(cfg["sessdata"])}
