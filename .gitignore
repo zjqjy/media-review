@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 敏感配置（Cookie），任何位置都不入库
+_config_local.json
+_config_local.yml
+
+# 运行产物
+*.log
+.cache/
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store

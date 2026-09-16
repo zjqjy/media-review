@@ -1,0 +1,108 @@
+{
+  "code": 0,
+  "message": "0",
+  "ttl": 1,
+  "data": {
+    "class": null,
+    "arc_audits": [
+      {
+        "Archive": {
+          "aid": 1906473802,
+          "bvid": "BV1example01",
+          "title": "ESP32 桌面小机器人：从零到会眨眼",
+          "cover": "cover1.jpg",
+          "desc": "第一集：硬件选型",
+          "duration": 0,
+          "state": 0,
+          "ctime": 1789123200,
+          "ptime": 1789170000
+        },
+        "Videos": null,
+        "stat": {
+          "aid": 1906473802,
+          "view": 12450,
+          "danmaku": 89,
+          "reply": 156,
+          "favorite": 890,
+          "coin": 432,
+          "share": 210,
+          "like": 1567,
+          "dislike": 0,
+          "now_rank": 0,
+          "his_rank": 0,
+          "vv": 12450
+        },
+        "state_panel": 0,
+        "open_appeal": 0,
+        "activity": null,
+        "season_add_state": 0
+      },
+      {
+        "Archive": {
+          "aid": 1906473803,
+          "bvid": "BV1example02",
+          "title": "5块钱的ESP32能干什么？",
+          "cover": "cover2.jpg",
+          "desc": "杂物间翻出来的板子",
+          "duration": 0,
+          "state": 0,
+          "ctime": 1789420800,
+          "ptime": 1789420800
+        },
+        "Videos": null,
+        "stat": {
+          "aid": 1906473803,
+          "view": 3100,
+          "danmaku": 12,
+          "reply": 34,
+          "favorite": 120,
+          "coin": 45,
+          "share": 18,
+          "like": 230,
+          "dislike": 0,
+          "now_rank": 0,
+          "his_rank": 0,
+          "vv": 3100
+        },
+        "state_panel": 0,
+        "open_appeal": 0,
+        "activity": null,
+        "season_add_state": 0
+      },
+      {
+        "Archive": {
+          "aid": 1906473804,
+          "bvid": "BV1example03",
+          "title": "刚发的视频（ptime 为 0 时回退 ctime）",
+          "cover": "cover3.jpg",
+          "desc": "",
+          "duration": 0,
+          "state": 0,
+          "ctime": 1790000000,
+          "ptime": 0
+        },
+        "Videos": null,
+        "stat": {
+          "aid": 1906473804,
+          "view": 50,
+          "danmaku": 0,
+          "reply": 1,
+          "favorite": 2,
+          "coin": 0,
+          "share": 0,
+          "like": 5,
+          "dislike": 0,
+          "now_rank": 0,
+          "his_rank": 0,
+          "vv": 50
+        },
+        "state_panel": 0,
+        "open_appeal": 0,
+        "activity": null,
+        "season_add_state": 0
+      }
+    ],
+    "page": { "pn": 1, "ps": 100, "count": 3 },
+    "play_type": 1
+  }
+}
