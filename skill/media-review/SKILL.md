@@ -10,8 +10,8 @@ description: 自媒体发布后数据复盘。当用户说"复盘"、"media-revi
 ## 前置
 
 - 配置：`<vault>/20_自媒体/复盘/_config_local.json`（含 B站 SESSDATA；vault 路径未知时先问用户）
-- Cookie 未配置/失效时，让用户自己跑：`python scripts/fetch_bili.py login --config "<vault>/20_自媒体/复盘/_config_local.json"` → 终端弹二维码 → B站 App 扫码 → SESSDATA 自动写入配置（需 `pip install qrcode`）。用户也可 F12 手动复制
-- 脚本：本 skill 目录下 `scripts/fetch_bili.py`（取数零依赖；login 另需 qrcode）；收集窗 `tools/screenshot_tray.py`（需 Pillow）
+- Cookie 未配置/失效时，让用户自己跑：`python scripts/fetch_bili.py login --config "<vault>/20_自媒体/复盘/_config_local.json"` → 二维码图片自动弹出 → B站 App 扫码 → SESSDATA 自动写入配置（需 `pip install qrcode`）。用户也可 F12 手动复制
+- 脚本：本 skill 目录下 `scripts/fetch_bili.py`（取数零依赖；login 另需 qrcode）；收集窗 `scripts/screenshot_tray.py`（需 Pillow）
 - 若当前工作目录就是 vault（能找到 `20_自媒体/复盘/`），所有路径相对 cwd
 
 ## 流程
@@ -35,7 +35,7 @@ python scripts/fetch_bili.py list --config "<vault>/20_自媒体/复盘/_config_
 - **抖音/小红书**：启动收集窗（后台、不阻塞）：
 
 ```bash
-python tools/screenshot_tray.py --dir "<vault>/20_自媒体/复盘/_截图收件"
+python scripts/screenshot_tray.py --dir "<vault>/20_自媒体/复盘/_截图收件"
 ```
 
 告诉用户："把创作中心截图 Ctrl+V 贴进弹出的窗口，贴完点完成收集/直接跟我说完事"。用户说完成或窗口关闭后，读 `_截图收件/` 里的图，逐张识别：平台、标题、发布时间、播放/完播/点赞/收藏/涨粉等数字。

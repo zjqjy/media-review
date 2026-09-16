@@ -53,7 +53,7 @@ sources:
 ┌─ 代码仓 D:\DeskTop\WorkSpace\Code\media-review\ ──┐
 │ skill/media-review/SKILL.md       流程+诊断框架     │
 │ skill/media-review/scripts/fetch_bili.py  B站取数  │
-│ tools/screenshot_tray.py       截图收集窗（复盘时启动）  │
+│ scripts/screenshot_tray.py       截图收集窗（复盘时启动）  │
 │ install.ps1                       安装 skill 到 ~/.claude/skills/ │
 └──────────────────────────────────────────┘
         │ 读写（路径走配置）
@@ -83,7 +83,7 @@ media-review/
 
 - **B站自动轨**：`fetch_bili.py` 用 Cookie 拉创作中心投稿列表（首次全量盘点历史投稿，之后增量）+ 单视频数据；自动按发布日期算 D+3/D+7/D+30 是否到期。Cookie 失效直接报错提示更新，不猜。API 失败重试一次，仍失败降级为手动粘贴模式
 - **手动轨（抖音/小红书）——截图收件箱模式**（2026-09-16 定稿，替代"对话贴图"方案）：
-  - **收集端**：收集窗口 `tools/screenshot_tray.py`（tkinter+Pillow，置顶小窗）——**复盘时由 skill 启动，非常驻**（复盘是集中时间做的事，贴完即关，无托盘/无自启/无热键）。截图后点窗 Ctrl+V 连续贴多张，图落 `20_自媒体/复盘/_截图收件/`，文件名 `yyyyMMdd-HHmmss_平台.png`，平台下拉可选（抖音/小红书/自动识别），"完成"按钮关闭并结束收集
+  - **收集端**：收集窗口 `scripts/screenshot_tray.py`（tkinter+Pillow，置顶小窗）——**复盘时由 skill 启动，非常驻**（复盘是集中时间做的事，贴完即关，无托盘/无自启/无热键）。截图后点窗 Ctrl+V 连续贴多张，图落 `20_自媒体/复盘/_截图收件/`，文件名 `yyyyMMdd-HHmmss_平台.png`，平台下拉可选（抖音/小红书/自动识别），"完成"按钮关闭并结束收集
   - **消费端**：复盘时 skill 批量读收件目录，逐张多模态识别平台/标题/数据指标，对号入座写进报告；识别不了的图留下等用户备注；处理完的图移 `06_归档/截图收件备份/` 留痕
   - **抖音 Excel 导出**：复盘时给文件路径，直接读
   - `_发布登记.md` 只填元数据四项（平台/标题/发布日期/链接），数据本体靠截图，不手打数字

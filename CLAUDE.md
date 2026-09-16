@@ -11,7 +11,7 @@ Claude Code skill：手动喊 `/media-review` → 清算到期观察点（D+3/D+
 ```
 skill/media-review/SKILL.md        主技能（流程+诊断框架，安装到 ~/.claude/skills/）
 skill/media-review/scripts/fetch_bili.py   B站取数（纯标准库，仅取自己账号数据）
-tools/screenshot_tray.py           截图收集窗（tkinter+Pillow，复盘时启动非常驻）
+scripts/screenshot_tray.py           截图收集窗（tkinter+Pillow，复盘时启动非常驻）
 install.ps1                        安装 skill + 依赖
 tests/                             unittest + fixtures（录制的接口响应结构）
 docs/design.md                     设计文档副本
