@@ -198,24 +198,42 @@ def fetch_playsource(sessdata):
 # ---------------------------------------------------------------- login（扫码）
 
 def _show_qr(url, cfg_path):
-    """展示登录二维码：优先存 PNG 并自动打开（GBK 终端渲染块字符会花，
-    图片查看器万无一失）；Pillow 不可用时回退终端 ASCII（UTF-8 终端才行）。"""
+    """展示登录二维码。优先 tkinter 原生弹窗（免选打开方式，扫码成功自动关）；
+    失败则存 PNG 调系统查看器；再失败回退终端 ASCII（需 UTF-8 终端）。
+    返回 (root或None, status_var或None, png_path或None)——root 非 None 时调用方
+    需在轮询循环里穿插 root.update() 保持窗口响应。"""
+    import tkinter as tk
     import qrcode
-    qr = qrcode.QRCode(border=2)
+    qr = qrcode.QRCode(border=2, box_size=8)
     qr.add_data(url)
     qr.make(fit=True)
     try:
+        from PIL import ImageTk
         img = qr.make_image()
-        path = cfg_path.parent / "_login_qr.png"
-        img.save(path)
-        os.startfile(path)  # Windows 默认图片查看器
-        print(f"[login] 二维码已弹出（{path}），登录成功后此图自动删除", file=sys.stderr)
-        return path
-    except Exception as exc:  # noqa: BLE001——任何渲染失败都走 ASCII 回退
-        print(f"[login] 图片渲染失败（{exc}），回退终端二维码（需 UTF-8 终端）", file=sys.stderr)
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        qr.print_ascii(invert=True)
-        return None
+        pil_img = img.get_image() if hasattr(img, "get_image") else img
+        root = tk.Tk()
+        root.title("B站扫码登录")
+        root.attributes("-topmost", True)
+        tk_img = ImageTk.PhotoImage(pil_img)
+        tk.Label(root, image=tk_img).pack(padx=24, pady=(24, 8))
+        status = tk.StringVar(value="用 B站 App 扫一扫（180 秒内有效），确认后本窗口自动关闭")
+        tk.Label(root, textvariable=status, fg="#555").pack(pady=(0, 20))
+        # 防止 PhotoImage 被垃圾回收
+        root._qr_img_ref = tk_img
+        print("[login] 二维码窗口已弹出", file=sys.stderr)
+        return root, status, None
+    except Exception as exc:  # noqa: BLE001——tkinter/PIL 不可用时逐级回退
+        print(f"[login] 弹窗失败（{exc}），改存 PNG 由系统查看器打开", file=sys.stderr)
+        try:
+            path = cfg_path.parent / "_login_qr.png"
+            qr.make_image().save(path)
+            os.startfile(path)
+            return None, None, path
+        except Exception as exc2:  # noqa: BLE001
+            print(f"[login] PNG 也失败（{exc2}），回退终端二维码", file=sys.stderr)
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            qr.print_ascii(invert=True)
+            return None, None, None
 
 
 def cmd_login(cfg_path, cfg):
@@ -229,42 +247,55 @@ def cmd_login(cfg_path, cfg):
     if gen.get("code") != 0:
         die(f"二维码生成失败 code={gen.get('code')}")
     qrcode_key = gen["data"]["qrcode_key"]
-    qr_image = _show_qr(gen["data"]["url"], cfg_path)
-    print("↑ 用 B站 App（扫一扫）扫码登录，180 秒内有效...", file=sys.stderr)
+    root, status, png_path = _show_qr(gen["data"]["url"], cfg_path)
 
     deadline = time.time() + 180
     last_code = None
+    sessdata = None
+    resp_headers = None
+    last_poll = 0.0
     while time.time() < deadline:
-        time.sleep(2)
-        payload, headers = http_get(QR_API["poll"], {"qrcode_key": qrcode_key})
+        if root:
+            root.update()  # 保持窗口响应
+        if time.time() - last_poll < 2:
+            time.sleep(0.1)  # 小步睡，UI 不卡
+            continue
+        last_poll = time.time()
+        payload, resp_headers = http_get(QR_API["poll"], {"qrcode_key": qrcode_key})
         code = (payload.get("data") or {}).get("code")
-        if code != last_code and code in QR_CODE_MSG:
-            print(f"[login] {QR_CODE_MSG[code]}", file=sys.stderr)
+        if code != last_code:
+            msg = QR_CODE_MSG.get(code, "确认中…")
+            print(f"[login] {msg}", file=sys.stderr)
+            if status:
+                status.set(msg)
             last_code = code
         if code == 86038:
+            if root:
+                root.destroy()
             die("二维码过期——重跑 login")
         if code == 0:
             # 登录成功，cookie 在 Set-Cookie 响应头里
-            sessdata = None
-            for header in headers.get_all("Set-Cookie") or []:
+            for header in resp_headers.get_all("Set-Cookie") or []:
                 for part in header.split(";"):
                     if part.strip().startswith("SESSDATA="):
                         sessdata = part.strip().split("=", 1)[1]
                         break
                 if sessdata:
                     break
-            if qr_image and qr_image.is_file():
-                qr_image.unlink()  # 用完即删，不留登录凭据图
-            if not sessdata:
-                die("登录成功但响应里没拿到 SESSDATA——请改用手动 F12 复制")
-            cfg["sessdata"] = sessdata
-            cfg_path.write_text(
-                json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            print(f"[login] OK——SESSDATA 已写入 {cfg_path}", file=sys.stderr)
-            return
-    if qr_image and qr_image.is_file():
-        qr_image.unlink()
-    die("超时未确认——重跑 login")
+            break
+
+    if root:
+        root.destroy()
+    if png_path and png_path.is_file():
+        png_path.unlink()  # 用完即删，不留登录凭据图
+    if time.time() >= deadline and not sessdata:
+        die("超时未确认——重跑 login")
+    if not sessdata:
+        die("登录成功但响应里没拿到 SESSDATA——请改用手动 F12 复制")
+    cfg["sessdata"] = sessdata
+    cfg_path.write_text(
+        json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"[login] OK——SESSDATA 已写入 {cfg_path}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------- 输出
