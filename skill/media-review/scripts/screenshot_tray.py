@@ -4,8 +4,11 @@
 用法：
   python screenshot_tray.py [--dir 收件目录]
 
-操作：截图（Win+Shift+S 等）→ 本窗口置顶 → 点窗口/按 Ctrl+V 连续贴
-      → 平台下拉可标（自动识别/抖音/小红书/B站）→ 点"完成收集"退出。
+操作：截图（Win+Shift+S 等）→ 本窗口置顶 → 填期数 → 点窗口/按 Ctrl+V 连续贴
+      → 平台下拉标注 → 点"完成收集"退出。
+
+保存结构（分平台分期数，AI 后整理兜底）：
+  <dir>/<期数>/<平台|时间戳>.png
 
 依赖：Pillow（pip install pillow）。剪贴板无图时提示，不打断。
 """
@@ -21,8 +24,8 @@ try:
 except ImportError:
     raise SystemExit("缺依赖：pip install pillow")
 
-PLATFORMS = ["自动识别", "抖音", "小红书", "B站"]
-PLATFORM_TAG = {"自动识别": "", "抖音": "抖音", "小红书": "小红书", "B站": "B站"}
+PLATFORMS = ["未标平台", "抖音", "小红书", "B站"]
+PLATFORM_TAG = {"未标平台": "", "抖音": "抖音", "小红书": "小红书", "B站": "B站"}
 
 
 class Collector(tk.Tk):
@@ -41,6 +44,10 @@ class Collector(tk.Tk):
 
         row = ttk.Frame(self)
         row.pack(padx=12, pady=4, fill="x")
+        ttk.Label(row, text="期数").pack(side="left")
+        self.episode = ttk.Entry(row, width=10, font=("", 10))
+        self.episode.insert(0, "第1期")
+        self.episode.pack(side="left", padx=(4, 12))
         ttk.Label(row, text="平台").pack(side="left")
         self.platform = ttk.Combobox(row, values=PLATFORMS, state="readonly",
                                      width=10, font=("", 10))
@@ -55,8 +62,13 @@ class Collector(tk.Tk):
         # 置顶有时被别的置顶窗盖住，抢一下焦点
         self.focus_force()
 
+    def _episode(self):
+        """期数作为子目录名，清理路径脏字符；空则归'未分期'（AI 后整理兜底）。"""
+        name = self.episode.get().strip().replace("/", "_").replace("\\", "_")
+        return name or "未分期"
+
     def _hint_text(self):
-        return f"已收集 {self.count} 张 → {self.target_dir.name}/"
+        return f"已收集 {self.count} 张 → {self._episode()}/"
 
     def paste(self, _event=None):
         img = ImageGrab.grabclipboard()
@@ -67,13 +79,15 @@ class Collector(tk.Tk):
             return
         tag = PLATFORM_TAG.get(self.platform.get(), "")
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        name = f"{ts}_{tag}.png" if tag else f"{ts}.png"
-        # 同秒连贴防覆盖
-        target = self.target_dir / name
+        name = f"{tag}_{ts}.png" if tag else f"{ts}.png"
+        # 分期数子目录落盘
+        ep_dir = self.target_dir / self._episode()
+        ep_dir.mkdir(parents=True, exist_ok=True)
+        target = ep_dir / name
         i = 1
         while target.exists():
-            target = self.target_dir / f"{ts}-{i}_{tag}.png" if tag \
-                else self.target_dir / f"{ts}-{i}.png"
+            base = f"{tag}_{ts}-{i}.png" if tag else f"{ts}-{i}.png"
+            target = ep_dir / base
             i += 1
         img.save(target)
         self.count += 1
