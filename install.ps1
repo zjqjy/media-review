@@ -16,11 +16,16 @@ try {
     exit 1
 }
 
-# 2. 依赖：收集窗需要 Pillow（fetch_bili.py 零依赖）
+# 2. 依赖：收集窗需要 Pillow，扫码登录需要 qrcode（fetch 取数本身零依赖）
 python -c "import PIL" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[..] 安装 Pillow..."
     python -m pip install pillow
+}
+python -c "import qrcode" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[..] 安装 qrcode..."
+    python -m pip install qrcode
 }
 Write-Host "[OK] 依赖就绪"
 

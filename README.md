@@ -25,7 +25,10 @@ cd media-review
 .\install.ps1
 ```
 
-然后按提示把 vault 侧的 `_config_local.example.json` 复制为 `_config_local.json` 并填入 B站 Cookie（SESSDATA）。
+然后按提示配置 B站登录——二选一：
+
+- **扫码（推荐）**：`python skill/media-review/scripts/fetch_bili.py login --config "<vault>\20_自媒体\复盘\_config_local.json"`，二维码自动弹出，B站 App 扫一下即自动写入
+- **手动**：把 `_config_local.example.json` 复制为 `_config_local.json`，B站网页 F12 → Application → Cookies → 复制 SESSDATA 粘进去
 
 ## 使用
 

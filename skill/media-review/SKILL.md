@@ -10,7 +10,8 @@ description: 自媒体发布后数据复盘。当用户说"复盘"、"media-revi
 ## 前置
 
 - 配置：`<vault>/20_自媒体/复盘/_config_local.json`（含 B站 SESSDATA；vault 路径未知时先问用户）
-- 脚本：本 skill 目录下 `scripts/fetch_bili.py`（零依赖）；收集窗 `tools/screenshot_tray.py`（需 Pillow）
+- Cookie 未配置/失效时，让用户自己跑：`python scripts/fetch_bili.py login --config "<vault>/20_自媒体/复盘/_config_local.json"` → 终端弹二维码 → B站 App 扫码 → SESSDATA 自动写入配置（需 `pip install qrcode`）。用户也可 F12 手动复制
+- 脚本：本 skill 目录下 `scripts/fetch_bili.py`（取数零依赖；login 另需 qrcode）；收集窗 `tools/screenshot_tray.py`（需 Pillow）
 - 若当前工作目录就是 vault（能找到 `20_自媒体/复盘/`），所有路径相对 cwd
 
 ## 流程
