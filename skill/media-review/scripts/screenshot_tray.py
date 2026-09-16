@@ -45,8 +45,10 @@ class Collector(tk.Tk):
         row = ttk.Frame(self)
         row.pack(padx=12, pady=4, fill="x")
         ttk.Label(row, text="期数").pack(side="left")
-        self.episode = ttk.Entry(row, width=10, font=("", 10))
-        self.episode.insert(0, "第1期")
+        # 可编辑下拉：列出已有期数（含名字），也可手输新的；打开时动态刷新
+        self.episode = ttk.Combobox(row, width=20, font=("", 10), postcommand=self._refresh_episodes)
+        self._refresh_episodes()
+        self.episode.set(self.episode["values"][-1] if self.episode["values"] else "第1期")
         self.episode.pack(side="left", padx=(4, 12))
         ttk.Label(row, text="平台").pack(side="left")
         self.platform = ttk.Combobox(row, values=PLATFORMS, state="readonly",
@@ -61,6 +63,14 @@ class Collector(tk.Tk):
 
         # 置顶有时被别的置顶窗盖住，抢一下焦点
         self.focus_force()
+
+    def _refresh_episodes(self):
+        """下拉打开时扫描收件目录，列出已有期数（排除备份/隐藏目录）。"""
+        existing = sorted(
+            d.name for d in self.target_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(("_", "."))
+        ) if self.target_dir.is_dir() else []
+        self.episode["values"] = existing or ["第1期"]
 
     def _episode(self):
         """期数作为子目录名，清理路径脏字符；空则归'未分期'（AI 后整理兜底）。"""
