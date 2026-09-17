@@ -22,10 +22,30 @@ import tempfile
 from pathlib import Path
 
 from srt_cut import build_spans, parse_srt  # 同目录，同一套区间数学
+from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
 FILLER = "然后"  # 口头禅：句首匹配（用户点名要标）
 RED = (1.0, 0.35, 0.35)
+
+
+def subtract_silences(spans, silences, keep=0.2, min_cut=0.5):
+    """把保留区间再按区间内静音切开（句间短停顿/弱音段），两头各留 keep 缓冲。"""
+    fine = []
+    for s, e in spans:
+        cur = s
+        for ss, se in silences:
+            cs, ce = max(ss + keep, s), min(se - keep, e)
+            if ce - cs < min_cut:
+                continue
+            if cs > cur:
+                fine.append((cur, cs))
+                cur = ce
+            elif ce > cur:
+                cur = ce
+        if e > cur:
+            fine.append((cur, e))
+    return fine
 
 
 def make_annotations(entries):
@@ -52,12 +72,23 @@ def make_annotations(entries):
 def rebase_srt(entries, spans, path):
     """源时间轴条目 → 成片时间轴 srt（按 spans 平移，与剪出来的粗片对齐）。"""
     def target_of(src_start):
+        best, best_d = None, 1.0
         acc = 0.0
         for s, e in spans:
             if s - 0.001 <= src_start <= e + 0.001:
                 return acc + (src_start - s)
             acc += e - s
-        return None
+        # 精确匹配失败（句首落在被细剪的静音里）→ 取最近区间，距离超 1s 才丢
+        acc = 0.0
+        for s, e in spans:
+            d = min(abs(src_start - s), abs(src_start - e))
+            if src_start > s and src_start < e:
+                d = 0.0
+            if d < best_d:
+                best_d = d
+                best = acc + min(max(src_start - s, 0), e - s)
+            acc += e - s
+        return best
 
     def fmt(t):
         ms = int(round(t * 1000))
@@ -74,6 +105,8 @@ def rebase_srt(entries, spans, path):
             continue
         n += 1
         lines.append(f"{n}\n{fmt(a)} --> {fmt(b)}\n{txt}\n")
+    if n < len(entries):
+        print(f"[jy_draft] 提示：{len(entries) - n} 条字幕因时间戳落在细剪区外被跳过")
     Path(path).write_text("\n".join(lines), encoding="utf-8")
     return n
 
@@ -87,6 +120,9 @@ def main():
     ap.add_argument("--pad", type=float, default=0.2)
     ap.add_argument("--gap", type=float, default=0.4)
     ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--min-inner", type=float, default=0.8,
+                    help="区间内静音细剪阈值（秒），0=关闭细剪")
+    ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
     args = ap.parse_args()
 
     try:
@@ -102,6 +138,12 @@ def main():
     material = VideoMaterial(str(video))
     total_us = material.duration
     spans = build_spans(entries, total_us / 1e6, args.pad, args.gap)
+    n_coarse = len(spans)
+    if args.min_inner > 0:
+        silences, _ = detect_silences(str(video), args.db, args.min_inner)
+        spans = subtract_silences(spans, silences)
+        print(f"[jy_draft] 区间内静音细剪：{n_coarse} 段 → {len(spans)} 段"
+              f"（阈值 {args.min_inner}s/{args.db}dB）")
 
     folder = Path(args.draft_folder)
     if not folder.exists():
