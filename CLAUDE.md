@@ -1,20 +1,25 @@
 # media-review 开发上下文
 
-自媒体发布后数据复盘系统。设计文档（唯一真值）：vault `03_项目/自媒体复盘系统/设计文档.md`（本仓 `docs/design.md` 是同步副本，以 vault 为准）。
+自媒体 skill 集，一条内容的发前发后：**media-cut**（剪辑提效）+ **media-review**（数据复盘）。设计文档：复盘系统以 vault `03_项目/自媒体复盘系统/设计文档.md` 为准（本仓 `docs/design.md` 是同步副本）；剪辑提效以 vault `30_方法论/剪辑提效工作流.md` 为准（方法论沉淀，skill 是其执行规程）。
 
 ## 这是什么
 
-Claude Code skill：手动喊 `/media-review` → 清算到期观察点（D+3/D+7/D+30）→ B站自动取数（创作中心接口，Cookie 鉴权）→ 收集窗贴抖音/小红书截图 → 按爆款公式三要素（选题×素材×内容）归因 → 复盘报告写回 Obsidian vault → 半自动写回选题池/复用片段/对标。
+两个 Claude Code skill，同仓安装：
+
+- **media-cut**：喊 `/media-cut` → 三层漏斗粗剪——①静音压缩（`silence_trim.py` 全自动）→ ②转录（AutoCut/FunClip）+ AI 初选句子保留/删/收紧（人工复核后剪切）→ ③精剪交接；逐字稿归档 vault `20_自媒体/复盘/逐字稿/`，是 media-review 复盘的直接输入（发前喂发后闭环）
+- **media-review**：喊 `/media-review` → 清算到期观察点（D+3/D+7/D+30）→ B站自动取数（创作中心接口，Cookie 鉴权）→ 收集窗贴抖音/小红书截图 → 按爆款公式三要素（选题×素材×内容）归因 → 复盘报告写回 Obsidian vault → 半自动写回选题池/复用片段/对标
 
 ## 结构
 
 ```
-skill/media-review/SKILL.md        主技能（流程+诊断框架，安装到 ~/.claude/skills/）
-skill/media-review/scripts/fetch_bili.py   B站取数（纯标准库，仅取自己账号数据）
-scripts/screenshot_tray.py           截图收集窗（tkinter+Pillow，复盘时启动非常驻）
-install.ps1                        安装 skill + 依赖
-tests/                             unittest + fixtures（录制的接口响应结构）
-docs/design.md                     设计文档副本
+skill/media-review/SKILL.md         复盘技能（流程+诊断框架）
+skill/media-review/scripts/fetch_bili.py      B站取数（纯标准库，仅取自己账号数据）
+skill/media-review/scripts/screenshot_tray.py 截图收集窗（tkinter+Pillow，复盘时启动非常驻）
+skill/media-cut/SKILL.md            剪辑提效技能（三层漏斗流程+初选规则）
+skill/media-cut/scripts/silence_trim.py       静音压缩（零依赖，ffmpeg 自动发现）
+install.ps1                         安装 skill 集 + 依赖（Pillow/qrcode/imageio-ffmpeg）
+tests/                              unittest + fixtures（录制的接口响应结构）
+docs/design.md                      复盘系统设计文档副本
 ```
 
 ## 红线
