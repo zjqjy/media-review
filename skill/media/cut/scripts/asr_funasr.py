@@ -19,42 +19,46 @@ from pathlib import Path
 from silence_trim import FFMPEG, run  # 同目录，复用 ffmpeg 通道
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+CJK_RE = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
 PUNCT_SKIP = "，。？！；：、,"
+
+
+def _token_spans(text):
+    """占时间戳的字符区段：汉字一字一段；连续英数串一段；其余（标点/符号/空白）不占。"""
+    spans = []
+    i = 0
+    while i < len(text):
+        m = TOKEN_RE.match(text, i)
+        if m:
+            spans.append((m.start(), m.end()))
+            i = m.end()
+            continue
+        if CJK_RE.match(text, i):
+            spans.append((i, i + 1))
+        i += 1
+    return spans
 
 
 def build_entries(text, ts):
     """字级时间戳 → 标点分句条目 [(start_ms, end_ms, 句子)]。
 
-    对齐规则（实测 funasr 1.4.x）：标点/空白不占时间戳；连续英数串
-    （Hello/ESP32/LED 是一个 token）只占 1 个时间戳，汉字一字一个。
+    数目对得上 → 精确对齐；对不上（版本行为变化/生僻符号）→ 按字符比例兜底。
     分句在 。？！；， 处断开——条目粒度到从句，"删句子=剪视频"更好使。
-    对不上（别的版本行为变了）→ 按字符比例兜底，并打警告。
     """
-    toks = []  # (char_i, char_j, [s,e])
-    i = k = 0
-    while i < len(text):
-        if text[i] in PUNCT_SKIP or text[i].isspace():
-            i += 1
-            continue
-        m = TOKEN_RE.match(text, i)
-        if m:
-            toks.append((m.start(), m.end(), ts[k]))
-            i = m.end()
-        else:
-            toks.append((i, i + 1, ts[k]))
-            i += 1
-        k += 1
-
-    if k != len(ts):
-        print(f"[asr_funasr] 警告：字符/时间戳对不上（{k} vs {len(ts)}），按比例兜底")
-        spans = re.split(r"([。？！；，])", text)
-        sents, buf = [], ""
-        for seg in spans:
+    spans = _token_spans(text)
+    if len(spans) != len(ts):
+        odd = sorted({c for c in text
+                      if not (CJK_RE.match(c) or TOKEN_RE.fullmatch(c)
+                              or c.isspace() or c in PUNCT_SKIP)})
+        print(f"[asr_funasr] 警告：token {len(spans)} ≠ 时间戳 {len(ts)}，"
+              f"按比例兜底；可疑字符：{''.join(odd)[:50]}")
+        sents = []
+        buf = ""
+        for seg in re.split(r"([。？！；，])", text):
             buf += seg
             if seg in "。？！；，" or seg == "":
-                s = buf.strip()
-                if s:
-                    sents.append(s)
+                if buf.strip():
+                    sents.append(buf.strip())
                 buf = ""
         total_a, total_b = ts[0][0], ts[-1][1]
         n_chars = sum(len(s) for s in sents) or 1
@@ -66,23 +70,20 @@ def build_entries(text, ts):
             out.append((a, b, s))
         return out
 
+    toks = [(a, b, ts[k]) for k, (a, b) in enumerate(spans)]
     entries = []
     cur = []  # 当前句的 token 列表
     for idx, (ci, cj, t) in enumerate(toks):
         cur.append((ci, cj, t))
         nxt = toks[idx + 1] if idx + 1 < len(toks) else None
         if nxt is None:
-            end_text = cj
-        else:
-            end_text = nxt[0]  # 句子连着后面的标点一起收，字幕更像话
-            if any(p in "。？！；，" for p in text[cj:nxt[0]]):
+            if cur:
                 entries.append((cur[0][2][0], cur[-1][2][1],
-                                text[cur[0][0]:end_text].strip()))
-                cur = []
-                continue
-        if nxt is None and cur:
+                                text[cur[0][0]:cj].strip()))
+        elif any(p in "。？！；，" for p in text[cj:nxt[0]]):
             entries.append((cur[0][2][0], cur[-1][2][1],
-                            text[cur[0][0]:end_text].strip()))
+                            text[cur[0][0]:nxt[0]].strip()))
+            cur = []
     return entries
 
 
