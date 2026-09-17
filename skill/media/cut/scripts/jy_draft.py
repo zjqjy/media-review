@@ -176,6 +176,15 @@ def main():
                               clip_settings=ClipSettings(transform_y=0.8))
     script.save()
 
+    # pyJianYingDraft 模板的 draft_id 是固定值，多个草稿同 ID 会干扰剪映的草稿定位——逐个随机化
+    meta_path = folder / name / "draft_meta_info.json"
+    import json
+    import uuid
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["draft_id"] = str(uuid.uuid4()).upper()
+    meta["draft_name"] = name
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=4), encoding="utf-8")
+
     kept = sum(e - s for s, e in spans)
     print(f"[jy_draft] 草稿已生成：{folder / name}")
     print(f"  主轨 {len(spans)} 段，成片约 {int(kept // 60)}:{int(kept % 60):02d}（源素材 {total_us / 6e7:.1f} 分钟）")
