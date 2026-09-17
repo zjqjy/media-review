@@ -58,6 +58,35 @@ def build_spans(entries, dur, pad, gap):
     return spans
 
 
+def subtract_intervals(spans, cuts, keep=0.0, min_cut=0.15):
+    """从保留区间里挖洞（口头禅词级跳剪/区间内静音细剪共用）。
+
+    cuts: [(s,e)] 待挖区间；keep 每侧留缓冲，挖剩不足 min_cut 的不动。
+    """
+    fine = []
+    for s, e in spans:
+        cur = s
+        for cs, ce in cuts:
+            cs, ce = max(cs + keep, s), min(ce - keep, e)
+            if ce - cs < min_cut:
+                continue
+            if cs > cur:
+                fine.append((cur, cs))
+                cur = ce
+            elif ce > cur:
+                cur = ce
+        if e > cur:
+            fine.append((cur, e))
+    return fine
+
+
+def load_cuts(path):
+    """asr_funasr 产出的 .cuts.json → [(s,e)] 秒。"""
+    import json
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return [(c["start"] / 1000, c["end"] / 1000) for c in data]
+
+
 def main():
     ap = argparse.ArgumentParser(description="SRT 删行剪切（删句子 = 剪视频）")
     ap.add_argument("video")
@@ -65,6 +94,8 @@ def main():
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--pad", type=float, default=0.2)
     ap.add_argument("--gap", type=float, default=0.4)
+    ap.add_argument("--cuts", default=None,
+                    help="asr_funasr 产出的 .cuts.json（句首口头禅词级跳剪），默认自动找与视频同名的")
     args = ap.parse_args()
 
     video = Path(args.video)
@@ -74,6 +105,18 @@ def main():
     entries = parse_srt(args.srt)
     dur = duration_of(video)
     spans = build_spans(entries, dur, args.pad, args.gap)
+
+    cuts_path = Path(args.cuts) if args.cuts else \
+        video.with_name(video.stem + ".cuts.json")
+    if args.cuts is None and not cuts_path.exists():
+        cuts_path = None
+    if cuts_path:
+        holes = load_cuts(cuts_path)
+        n_before = len(spans)
+        spans = subtract_intervals(spans, holes)
+        t0 = sum(e - s for s, e in spans)
+        print(f"[srt_cut] 词级跳剪：从 {cuts_path.name} 挖掉 {len(holes)} 个口头禅"
+              f"（{n_before} 段 → {len(spans)} 段）")
     kept = sum(e - s for s, e in spans)
 
     conds = "+".join(f"between(t,{s:.2f},{e:.2f})" for s, e in spans)

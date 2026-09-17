@@ -21,45 +21,23 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srt_cut import build_spans, parse_srt  # 同目录，同一套区间数学
+from srt_cut import build_spans, load_cuts, parse_srt, subtract_intervals
 from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
-FILLER = "然后"  # 口头禅：句首匹配（用户点名要标）
 RED = (1.0, 0.35, 0.35)
-
-
-def subtract_silences(spans, silences, keep=0.2, min_cut=0.5):
-    """把保留区间再按区间内静音切开（句间短停顿/弱音段），两头各留 keep 缓冲。"""
-    fine = []
-    for s, e in spans:
-        cur = s
-        for ss, se in silences:
-            cs, ce = max(ss + keep, s), min(se - keep, e)
-            if ce - cs < min_cut:
-                continue
-            if cs > cur:
-                fine.append((cur, cs))
-                cur = ce
-            elif ce > cur:
-                cur = ce
-        if e > cur:
-            fine.append((cur, e))
-    return fine
 
 
 def make_annotations(entries):
     """从剪切稿条目自动出标注：[(start_s, end_s, 标签+摘句)]。
 
     规则（按需往这里加）：
-    - 句首"然后" → [口头禅·然后]
     - 句内叠词（并将并将 / 等待一会儿等待一类） → [口吃·重说]
+    （句首口头禅"然后"已由转录时词级剥离，不再进句子）
     """
     out = []
     for s, e, txt in entries:
         tags = []
-        if txt.startswith(FILLER):
-            tags.append(f"口头禅·{FILLER}")
         m = re.search(r"([\u4e00-\u9fff]{2})\1", txt)
         if m:
             tags.append(f"口吃·重说「{m.group(1)}」")
@@ -123,6 +101,9 @@ def main():
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭细剪")
     ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
+    ap.add_argument("--cuts", default=None,
+                    help="口头禅洞 .cuts.json，默认自动找与视频同名的")
+    ap.add_argument("--no-cuts", action="store_true", help="不做词级口头禅跳剪")
     args = ap.parse_args()
 
     try:
@@ -139,9 +120,21 @@ def main():
     total_us = material.duration
     spans = build_spans(entries, total_us / 1e6, args.pad, args.gap)
     n_coarse = len(spans)
+
+    # 词级跳剪：句首口头禅洞（转录自动产出，与视频同名 .cuts.json）
+    cuts_path = Path(args.cuts) if args.cuts else \
+        video.with_name(video.stem + ".cuts.json")
+    if (args.no_cuts or not cuts_path.exists()) and args.cuts is None:
+        cuts_path = None
+    if cuts_path:
+        holes = load_cuts(cuts_path)
+        spans = subtract_intervals(spans, holes)
+        print(f"[jy_draft] 词级跳剪：挖掉 {len(holes)} 个口头禅"
+              f"（{cuts_path.name}）")
+
     if args.min_inner > 0:
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
-        spans = subtract_silences(spans, silences)
+        spans = subtract_intervals(spans, silences, keep=0.2, min_cut=0.5)
         print(f"[jy_draft] 区间内静音细剪：{n_coarse} 段 → {len(spans)} 段"
               f"（阈值 {args.min_inner}s/{args.db}dB）")
 

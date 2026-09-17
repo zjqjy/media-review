@@ -49,8 +49,11 @@ python scripts/silence_trim.py 素材.mp4 [--db -35] [--min 2.0] [--pad 0.3]
 
 ```bash
 python scripts/asr_funasr.py 素材_trimmed.mp4 --hotword "ESP32 乐鑫 IDF CubeMX"
-# 输出 素材_trimmed.srt（每句带时间戳）；技术词塞 --hotword，准确率立涨
+# 输出 素材_trimmed.srt（每句带时间戳）+ .cuts.json（句首口头禅"然后"的词级时间洞）
+# 技术词塞 --hotword；口头禅默认剥"然后"（--strip-filler 可改/关）
 ```
+
+初选删除策略（实测反馈校准）：**只删三类铁废料**——整段重复、纯语气词条目（嗯/对/好单字句）、乱码无信息。口吃、假起头、说半截的句子**保留**：句内口吃由"口吃·重说"标注留给精剪，句首口头禅由词级跳剪自动抠掉（字幕文本同步剥字，音画一致）。AI 不因"说得啰嗦"删整句——那是品味判断，归用户。
 
 CPU 几分钟出稿（Paraformer 非自回归架构，CPU 亲和，无需 GPU），**后台任务跑**。首跑下载 ~1.2G 模型（ModelScope 国内 CDN，**关 VPN 直连**）。识别仍有错 → 修 srt 里的专有名词拼写（时间戳行不动）后继续。用户已有其他渠道转录稿（srt/md 均可）→ 直接用，不重转。
 
@@ -79,7 +82,8 @@ python scripts/jy_draft.py 素材_trimmed.mp4 剪切稿.srt --name "第N期_标�
 
 - 主视频轨 = 全部保留区间，引用原素材（**不重编码零损失**），剪切点在剪映里仍是可拖动的分割线
 - 字幕轨 = 剪切稿（已 rebase 到成片时间轴）
-- 标注轨 = 红色置顶文本，自动标注第②层处理不了、留给精剪的点：句首口头禅"然后"、句内叠词口吃（26 条/9 分钟素材的密度）。**导出成片前删掉该轨**
+- **标注轨** = 红色置顶文本，自动标第②层处理不了、留给精剪的点（句内叠词口吃等）。**导出成片前删掉该轨**
+- 词级跳剪：转录产出的 `.cuts.json`（句首"然后"等口头禅的词级时间）在生成草稿时自动从音频抠掉，字幕文本同步剥字；`--no-cuts` 关闭
 - 依赖 `pip install pyJianYingDraft`（轻量）；草稿写进剪映草稿目录（默认 `AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft`，不同装法用 `--draft-folder` 指定），打开剪映首页即见
 - 要独立粗片文件（如发抖音版先用）→ fallback 走 `srt_cut.py` 重编码出片
 

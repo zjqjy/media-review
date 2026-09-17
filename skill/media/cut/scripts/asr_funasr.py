@@ -12,6 +12,7 @@
 """
 
 import argparse
+import json
 import re
 import tempfile
 from pathlib import Path
@@ -39,12 +40,14 @@ def _token_spans(text):
     return spans
 
 
-def build_entries(text, ts):
-    """字级时间戳 → 标点分句条目 [(start_ms, end_ms, 句子)]。
+def build_entries(text, ts, fillers=()):
+    """字级时间戳 → 标点分句条目 [(start_ms, end_ms, 句子)] + 口头禅洞 cuts。
 
-    数目对得上 → 精确对齐；对不上（版本行为变化/生僻符号）→ 按字符比例兜底。
-    分句在 。？！；， 处断开——条目粒度到从句，"删句子=剪视频"更好使。
+    fillers 里的句首口头禅（如"然后"）不进句子，而是记成洞
+    [{"start":ms,"end":ms,"word":词}]，剪切时从音频里精确抠掉（词级跳剪）。
+    数目对不上 → 按比例兜底（此时出不了洞，口头禅留在句子里）。
     """
+    cuts = []
     spans = _token_spans(text)
     if len(spans) != len(ts):
         odd = sorted({c for c in text
@@ -68,23 +71,30 @@ def build_entries(text, ts):
             acc += len(s)
             b = total_a + (total_b - total_a) * acc / n_chars
             out.append((a, b, s))
-        return out
+        return out, cuts
 
     toks = [(a, b, ts[k]) for k, (a, b) in enumerate(spans)]
     entries = []
-    cur = []  # 当前句的 token 列表
+    cur = []  # 当前句的 token 列表 [(ci, cj, [t_start, t_end])]
     for idx, (ci, cj, t) in enumerate(toks):
         cur.append((ci, cj, t))
         nxt = toks[idx + 1] if idx + 1 < len(toks) else None
-        if nxt is None:
-            if cur:
-                entries.append((cur[0][2][0], cur[-1][2][1],
-                                text[cur[0][0]:cj].strip()))
-        elif any(p in "。？！；，" for p in text[cj:nxt[0]]):
-            entries.append((cur[0][2][0], cur[-1][2][1],
-                            text[cur[0][0]:nxt[0]].strip()))
-            cur = []
-    return entries
+        if nxt is not None and not any(p in "。？！；，" for p in text[cj:nxt[0]]):
+            continue
+        # 句子闭合：句首口头禅剥成洞（词级跳剪用），正文作为条目
+        for f in fillers:
+            n_tok = len(f)  # filler 全汉字，一字一 token
+            if len(cur) > n_tok and \
+                    "".join(text[a:b] for a, b, _ in cur[:n_tok]) == f:
+                cuts.append({"start": cur[0][2][0], "end": cur[n_tok - 1][2][1],
+                             "word": f})
+                cur = cur[n_tok:]
+                break
+        word = text[cur[0][0]:cur[-1][1]]
+        word = re.sub(r"^[，,]", "", word).strip()
+        entries.append((cur[0][2][0], cur[-1][2][1], word))
+        cur = []
+    return entries, cuts
 
 
 def extract_wav(media: Path, tmpdir: str) -> Path:
@@ -108,6 +118,8 @@ def main():
     ap.add_argument("media")
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--hotword", default="", help="热词，空格分隔（技术词塞这里准确率立涨）")
+    ap.add_argument("--strip-filler", default="然后",
+                    help="句首口头禅词级剥离（逗号分隔多个），记入 .cuts.json 供剪切时抠掉；空串=关闭")
     args = ap.parse_args()
 
     media = Path(args.media)
@@ -125,17 +137,25 @@ def main():
         res = model.generate(**kw)
 
     r = res[0]
+    fillers = tuple(f for f in args.strip_filler.split(",") if f)
     # funasr 1.4.x 无 sentence_info：用字级 timestamp 自行分句对齐
     if r.get("sentence_info"):
         sents = [(s["start"], s["end"], s["text"].strip())
                  for s in r["sentence_info"]]
+        cuts = []
     elif r.get("timestamp"):
-        sents = build_entries(r["text"], r["timestamp"])
+        sents, cuts = build_entries(r["text"], r["timestamp"], fillers)
     else:
-        sents = [(0, 0, r.get("text", ""))]
+        sents, cuts = [(0, 0, r.get("text", ""))], []
     with open(out, "w", encoding="utf-8") as f:
         for i, (a, b, txt) in enumerate(sents, 1):
             f.write(f"{i}\n{fmt_ts(a)} --> {fmt_ts(b)}\n{txt}\n\n")
+    if cuts:
+        cuts_path = out.with_suffix(".cuts.json")
+        cuts_path.write_text(json.dumps(cuts, ensure_ascii=False, indent=1),
+                             encoding="utf-8")
+        print(f"[asr_funasr] 口头禅洞 {len(cuts)} 个 → {cuts_path}"
+              f"（剪切时自动抠掉：{'、'.join(sorted({c['word'] for c in cuts}))}）")
     print(f"[asr_funasr] {len(sents)} 句 → {out}")
     for a, b, txt in sents:
         print(f"[{fmt_ts(a)[3:8]}] {txt}")
