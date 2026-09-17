@@ -17,6 +17,7 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 - **第①层脚本**：本目录 `scripts/silence_trim.py`（零依赖，仅需 ffmpeg）
 - **ffmpeg** 自动发现：PATH → `imageio_ffmpeg` 自带二进制。都没有 → `winget install ffmpeg` 或 `pip install imageio-ffmpeg`
 - **第②层转录**：自研 `scripts/asr_funasr.py`（FunASR Paraformer + VAD + 标点，中文 CER ~10%，Whisper 的一半）。依赖 funasr（torch 级，安装需用户点头）；模型走 ModelScope 国内 CDN——**下载模型关 VPN 直连，pip 装包才开 VPN**，首跑 ~1.2G。备选：AutoCut（Whisper，英文素材或要验证它的工作流再装）
+- **第③层脚本**：`scripts/jy_draft.py`（剪映草稿直出）+ `scripts/srt_cut.py`（重编码出粗片，fallback）；均零 ffmpeg 外依赖，复用同一套区间数学
 - 逐字稿归档需要 vault 路径；若 cwd 就是 vault（能找到 `20_自媒体/`），路径相对 cwd
 
 ## 流程
@@ -68,9 +69,21 @@ CPU 几分钟出稿（Paraformer 非自回归架构，CPU 亲和，无需 GPU）
 
 **铁律：AI 初选不替用户拍板**——用户复核剪切稿之后才跑 `srt_cut.py`。与 review 的写回确认制同源。
 
-### 4. 第③层：精剪交接
+### 4. 第③层：剪映草稿直出（交接形态）
 
-交接清单（给剪映/PR）：粗片（srt_cut 产出）+ SRT 字幕 + "收紧"标记清单。精剪重点提示用户：关键步骤动画/字幕强调，结尾 CTA 往"存着照做"上靠（认知②）。
+精剪交接的不是粗片文件，是一个**拼好的剪映草稿**（`jy_draft.py`）：
+
+```bash
+python scripts/jy_draft.py 素材_trimmed.mp4 剪切稿.srt --name "第N期_标题_粗剪"
+```
+
+- 主视频轨 = 全部保留区间，引用原素材（**不重编码零损失**），剪切点在剪映里仍是可拖动的分割线
+- 字幕轨 = 剪切稿（已 rebase 到成片时间轴）
+- 标注轨 = 红色置顶文本，自动标注第②层处理不了、留给精剪的点：句首口头禅"然后"、句内叠词口吃（26 条/9 分钟素材的密度）。**导出成片前删掉该轨**
+- 依赖 `pip install pyJianYingDraft`（轻量）；草稿写进剪映草稿目录（默认 `AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft`，不同装法用 `--draft-folder` 指定），打开剪映首页即见
+- 要独立粗片文件（如发抖音版先用）→ fallback 走 `srt_cut.py` 重编码出片
+
+精剪重点提示用户：标注轨逐条处理（补录/加速/文字贴片），关键步骤动画/字幕强调，结尾 CTA 往"存着照做"上靠（认知②）。
 
 ### 5. 副产物归档（喂 review，闭环）
 
@@ -88,6 +101,8 @@ CPU 几分钟出稿（Paraformer 非自回归架构，CPU 亲和，无需 GPU）
 | ModelScope 模型下载慢（几百 kB/s） | 用户开着 VPN——关掉直连（国内 CDN）；pip 装 funasr 才需要开 VPN |
 | 技术词识别错 | `--hotword` 塞热词重跑；还不行就修 srt 专有名词（时间戳行不动） |
 | funasr 首跑卡在下载 | 模型 ~1.2G 逐个下，耐心；卡死删 `~/.cache/modelscope` 对应目录重拉 |
+| jy_draft 报草稿目录不存在 | 剪映全局设置→草稿位置 里看实际路径，`--draft-folder` 指定 |
+| 剪映打不开生成的草稿 | 剪映版本比库的支持矩阵新——升级 pyJianYingDraft（`pip install -U`）；仍不行退回 srt_cut 出粗片 + 双 SRT 导入（文本→本地字幕→导入字幕） |
 | Git Bash 造测试素材 | 别放 /tmp（和 Windows Python 路径体系不通），放工作目录 |
 | 素材全程无口述 | 第②层做不了，如实告知本期只能①+人眼，重点提醒下期口述（认知①） |
 
