@@ -53,7 +53,7 @@ sources:
 触发：/media-review
         │
         ▼
-┌─ 代码仓 D:\DeskTop\WorkSpace\Code\media-review\ ──┐
+┌─ 代码仓（本仓）──┐
 │ skill/media-review/SKILL.md       流程+诊断框架     │
 │ skill/media-review/scripts/fetch_bili.py  B站取数  │
 │ scripts/screenshot_tray.py       截图收集窗（复盘时启动）  │
@@ -61,7 +61,7 @@ sources:
 └──────────────────────────────────────────┘
         │ 读写（路径走配置）
         ▼
-vault（D:\DeskTop\WorkSpace\obsidian\）
+vault（Obsidian 知识库，路径走配置）
 ├─ 20_自媒体/复盘/_config_local.json  Cookie+vault路径（# sensitive，gitignore）
 ├─ 20_自媒体/复盘/_发布登记.md          可选线索（B站驱动为主，登记非必须）
 ├─ 20_自媒体/复盘/_改进实验.md          跨期改进闭环登记（改动→假设→验证→沉淀）

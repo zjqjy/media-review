@@ -35,7 +35,33 @@ if ($LASTEXITCODE -ne 0) {
         python -m pip install imageio-ffmpeg
     }
 }
-Write-Host "[OK] 依赖就绪"
+
+# media-cut/cut 子技能依赖
+python -c "import pyJianYingDraft" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[..] 安装 pyJianYingDraft（剪映草稿直出）..."
+    python -m pip install pyJianYingDraft
+}
+python -c "import funasr" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[..] 安装 funasr（转录；torch 级依赖，需几分钟）..."
+    python -m pip install funasr
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARN] funasr 安装失败（国内网络建议：开 VPN 装包，装完关掉下模型）" -ForegroundColor Yellow
+    }
+}
+# torchaudio 是 funasr 的 fbank 后端：必须与已装 torch 同版本，--no-deps 防止 pip 动 torch
+$torchVer = python -c "import torch; print(torch.__version__.split('+')[0])" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] 未检测到 torch——funasr 转录不可用；python -m pip install torch 后重跑" -ForegroundColor Yellow
+} else {
+    python -c "import torchaudio" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[..] 安装 torchaudio $torchVer（匹配 torch，--no-deps）..."
+        python -m pip install "torchaudio==$torchVer" --no-deps
+    }
+}
+Write-Host "[OK] 依赖就绪（funasr 首次转录还会从 ModelScope 下约 1.2G 模型，直连国内网即可）"
 
 # 3. 复制 skill（镜像：删掉旧内容再拷，改代码后重跑即可更新）
 foreach ($skill in $skills) {
