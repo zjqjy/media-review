@@ -9,7 +9,7 @@ skill/media/
 └── review/       子技能 · 数据复盘（发后）
 ```
 
-- **cut · 剪辑提效**：教程类长素材三层漏斗粗剪——①静音压缩（自研 silence_trim.py，ffmpeg silencedetect，全自动）→ ②AutoCut 转录 + AI 初选（删句子 = 剪视频）→ ③精剪交接剪映/PR。副产物 SRT 字幕 + 逐字稿
+- **cut · 剪辑提效**：教程类长素材三层漏斗粗剪——①静音压缩（自研 silence_trim.py，ffmpeg silencedetect，全自动）→ ②FunASR 转录（自研 asr_funasr.py，中文识别强、热词可加）+ AI 初选（删句子 = 剪视频）→ ③精剪交接剪映/PR。副产物 SRT 字幕 + 逐字稿
 - **review · 数据复盘**：B站全自动取数，抖音/小红书截图收件箱，按"爆款公式"（选题×素材×内容）归因回写 Obsidian 知识库
 
 ```
@@ -47,7 +47,7 @@ cd media-review
 **要剪素材**（说"粗剪 / 砍静音 / 转录选段"）→ cut：
 
 1. 静音压缩：`silence_trim.py` 自动砍 >2s 冷场（3h → ~1h，挂机）
-2. 文本粗剪：AutoCut 转录成带时间戳的稿子（未装会征求同意再装），Claude 按内容大纲标保留/删/收紧，你复核后一句命令出粗片
+2. 文本粗剪：`asr_funasr.py` 转录出带时间戳的 SRT（技术词可加热词），Claude 按内容大纲标保留/删/收紧，你复核后 `srt_cut.py` 一句命令剪出粗片
 3. 精剪交接：粗片 + SRT + 收紧清单丢进剪映/PR
 
 **发完视频**（说"复盘 / 看数据"）→ review：
@@ -61,4 +61,4 @@ cd media-review
 - 只通过 B站创作中心接口读取**自己账号**的数据（Cookie 鉴权，与浏览器登录同源），不爬取任何他人内容
 - 抖音/小红书数据来自**官方创作中心的截图**，人工手动提供，无任何自动化访问
 - Cookie 保存在本地 gitignore 文件中，不出现在任何入库文件和网络传输（仅发往 B站官方接口）
-- cut 只处理用户自己的素材；重依赖（AutoCut/Whisper 级）安装必须用户点头
+- cut 只处理用户自己的素材；重依赖（torch 级：funasr/AutoCut）安装必须用户点头

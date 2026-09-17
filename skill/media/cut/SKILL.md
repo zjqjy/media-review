@@ -16,7 +16,7 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 
 - **第①层脚本**：本目录 `scripts/silence_trim.py`（零依赖，仅需 ffmpeg）
 - **ffmpeg** 自动发现：PATH → `imageio_ffmpeg` 自带二进制。都没有 → `winget install ffmpeg` 或 `pip install imageio-ffmpeg`
-- **第②层转录**：[AutoCut](https://github.com/mli/autocut)（李沐，Whisper，pip 可装）为本 skill 默认集成；[FunClip](https://github.com/modelscope/FunClip)（阿里 FunASR，中文技术词 + 口音更稳，LLM 选段）是备选，识别差时换——需用户侧手动装，不默认
+- **第②层转录**：自研 `scripts/asr_funasr.py`（FunASR Paraformer + VAD + 标点，中文 CER ~10%，Whisper 的一半）。依赖 funasr（torch 级，安装需用户点头）；模型走 ModelScope 国内 CDN——**下载模型关 VPN 直连，pip 装包才开 VPN**，首跑 ~1.2G。备选：AutoCut（Whisper，英文素材或要验证它的工作流再装）
 - 逐字稿归档需要 vault 路径；若 cwd 就是 vault（能找到 `20_自媒体/`），路径相对 cwd
 
 ## 流程
@@ -44,15 +44,14 @@ python scripts/silence_trim.py 素材.mp4 [--db -35] [--min 2.0] [--pad 0.3]
 | 切到字了（说话被切半个字） | `--pad` 加大（0.3 → 0.5，每段两头多留缓冲） |
 | 自然停顿也被砍，节奏发紧 | `--min` 加大（2 → 3，只砍更长的冷场） |
 
-### 2. 第②层 a：转录（AutoCut，本 skill 代跑）
-
-先探测：`autocut --help`。没装 → **征得用户同意再装**（`pip install autocut`，带 torch 数 GB + 首跑下 Whisper 模型，别擅自装）。装好后：
+### 2. 第②层 a：转录（FunASR，本 skill 代跑）
 
 ```bash
-autocut -t 素材_trimmed.mp4    # 生成 素材_trimmed.md（每行一句带时间戳）+ SRT
+python scripts/asr_funasr.py 素材_trimmed.mp4 --hotword "ESP32 乐鑫 IDF CubeMX"
+# 输出 素材_trimmed.srt（每句带时间戳）；技术词塞 --hotword，准确率立涨
 ```
 
-转录 CPU 上很慢（3h 素材可能要等很久），**后台任务跑**，告知用户挂机；GPU 有则快得多。转录质量差（技术词/口音）→ 两条路：把 md 交给本 skill 修专有名词拼写（行结构不动）后继续；或换 FunClip 重转（用户侧装）。用户已有其他渠道转录稿 → 直接用，不重转。
+CPU 几分钟出稿（Paraformer 非自回归架构，CPU 亲和，无需 GPU），**后台任务跑**。首跑下载 ~1.2G 模型（ModelScope 国内 CDN，**关 VPN 直连**）。识别仍有错 → 修 srt 里的专有名词拼写（时间戳行不动）后继续。用户已有其他渠道转录稿（srt/md 均可）→ 直接用，不重转。
 
 ### 3. 第②层 b：AI 初选（本 skill 的主力工作）
 
@@ -61,17 +60,17 @@ autocut -t 素材_trimmed.mp4    # 生成 素材_trimmed.md（每行一句带时
    - **保留**：核心步骤、结论、金句
    - **删**：跑题、重复、死胡同、口误重录的前一次
    - **收紧**：内容要但表述啰嗦——只标记，**不改正文**
-3. **删行随意、行内只修错不改写**（AutoCut 剪切只看行头时间戳：删整行 = 删该段；行内修错别字/专有名词也安全，SRT 字幕反而更准；但**别合并/拆分行**——一行对应一段。"收紧"不改正文——md 里改了字，音频还是原话，字幕会和口播对不上，只做标记留给第③层加速或补录）
+3. **删条目随意、条目内只修错不改写**（剪切只看时间戳：删条目 = 删该段；条目里修错别字/专有名词也安全，SRT 字幕反而更准；但**别合并/拆分条目**——一条对应一段。"收紧"不改正文——改了字，音频还是原话，字幕会和口播对不上，只做标记留给第③层加速或补录）
 4. 产出两个文件：
-   - **剪切稿**：删行后的 md（用户复核后本 skill 代跑 `autocut -c 剪切稿.md` 出粗片）
-   - **复核单**：删了哪些行 + 为什么，拿不准的标"建议保留"让用户定
+   - **剪切稿**：删条目后的 srt（用户复核后本 skill 代跑 `python scripts/srt_cut.py 素材_trimmed.mp4 剪切稿.srt` 出粗片）
+   - **复核单**：删了哪些句 + 为什么，拿不准的标"建议保留"让用户定
 5. 初选时用认知②打分：优先保住"清单感"（步骤完整、结论前置、每步可跳读），别为完播砍步骤
 
-**铁律：AI 初选不替用户拍板**——用户复核剪切稿之后才跑 `autocut -c`。与 review 的写回确认制同源。
+**铁律：AI 初选不替用户拍板**——用户复核剪切稿之后才跑 `srt_cut.py`。与 review 的写回确认制同源。
 
 ### 4. 第③层：精剪交接
 
-交接清单（给剪映/PR）：粗片（autocut -c 产出）+ SRT 字幕 + "收紧"标记清单。精剪重点提示用户：关键步骤动画/字幕强调，结尾 CTA 往"存着照做"上靠（认知②）。
+交接清单（给剪映/PR）：粗片（srt_cut 产出）+ SRT 字幕 + "收紧"标记清单。精剪重点提示用户：关键步骤动画/字幕强调，结尾 CTA 往"存着照做"上靠（认知②）。
 
 ### 5. 副产物归档（喂 review，闭环）
 
@@ -86,9 +85,9 @@ autocut -t 素材_trimmed.mp4    # 生成 素材_trimmed.md（每行一句带时
 | 找不到 ffmpeg | `winget install ffmpeg` 或 `pip install imageio-ffmpeg`（脚本自动发现两者） |
 | 切字 | `--pad` 加大重跑 |
 | 没检测到静音 | 阈值不合适：噪大环境用 -30；素材本身没冷场就跳过这层 |
-| autocut 未装 | 征得同意再 `pip install autocut`（torch 重依赖）；用户不想装 → FunClip 或人眼，如实告知差距 |
-| autocut 转录慢/卡 | 后台任务挂着等；CPU 太慢可提示用户用小模型档 |
-| AutoCut 技术词识别差 | md 行结构不动、只修专有名词拼写后再走初选；仍差 → FunClip 重转 |
+| ModelScope 模型下载慢（几百 kB/s） | 用户开着 VPN——关掉直连（国内 CDN）；pip 装 funasr 才需要开 VPN |
+| 技术词识别错 | `--hotword` 塞热词重跑；还不行就修 srt 专有名词（时间戳行不动） |
+| funasr 首跑卡在下载 | 模型 ~1.2G 逐个下，耐心；卡死删 `~/.cache/modelscope` 对应目录重拉 |
 | Git Bash 造测试素材 | 别放 /tmp（和 Windows Python 路径体系不通），放工作目录 |
 | 素材全程无口述 | 第②层做不了，如实告知本期只能①+人眼，重点提醒下期口述（认知①） |
 

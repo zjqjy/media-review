@@ -131,7 +131,7 @@ def main():
     kept = dur - removed
     print(f"[silence_trim] 完成 → {out}")
     print(f"  原始 {fmt(dur)} → 压缩后约 {fmt(kept)}（砍掉 {removed/dur:.0%}）")
-    print("  下一步：AutoCut 转录 → 文本粗剪 → 精剪")
+    print("  下一步：asr_funasr.py 转录 → AI 初选删行 → srt_cut.py 剪出粗片")
 
 
 if __name__ == "__main__":
