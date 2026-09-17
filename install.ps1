@@ -1,8 +1,8 @@
-﻿# media-review 自媒体 skill 集安装器：装全部 skill 到 ~/.claude/skills/，检查 Python 依赖
+﻿# media-review 自媒体 skill 集安装器：装 media 门面技能到 ~/.claude/skills/，检查 Python 依赖
 # 用法：powershell -ExecutionPolicy Bypass -File install.ps1
 
 $ErrorActionPreference = "Stop"
-$skills = @("media-review", "media-cut")
+$skills = @("media")
 
 Write-Host "== media-review skill 集安装 ==" -ForegroundColor Cyan
 
@@ -45,6 +45,15 @@ foreach ($skill in $skills) {
     New-Item -ItemType Directory -Path $skillDst -Force | Out-Null
     Copy-Item "$skillSrc\*" $skillDst -Recurse -Force
     Write-Host "[OK] $skill 已安装到 $skillDst"
+}
+
+# 旧版拆装的独立 skill 目录清理（media-review / media-cut 已并为 media 的子技能，留着会重复触发）
+foreach ($legacy in @("media-review", "media-cut")) {
+    $legacyDst = Join-Path $HOME ".claude\skills\$legacy"
+    if (Test-Path $legacyDst) {
+        Remove-Item $legacyDst -Recurse -Force
+        Write-Host "[OK] 已清理旧 skill 目录 $legacyDst"
+    }
 }
 
 # 4. 配置指引

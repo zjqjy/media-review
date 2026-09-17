@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "skill" / "media-review" / "scripts"))
+sys.path.insert(0, str(HERE.parent / "skill" / "media" / "review" / "scripts"))
 
 import fetch_bili as fb  # noqa: E402
 
