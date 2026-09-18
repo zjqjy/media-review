@@ -124,9 +124,19 @@ def main():
     n_coarse = len(spans)
 
     # 词级跳剪：句首口头禅洞 + 重录对前遍（转录自动产出，与视频同名 .cuts.json）
-    cuts_path = Path(args.cuts) if args.cuts else \
-        video.with_name(video.stem + ".cuts.json")
-    if (args.no_cuts or not cuts_path.exists()) and args.cuts is None:
+    # cuts.json 查找顺序：显式指定 → 视频同目录 → srt 同目录（剪切稿常带"_剪切稿"后缀）
+    cuts_path = Path(args.cuts) if args.cuts else None
+    if cuts_path is None:
+        srt_p = Path(args.cut_srt)
+        stems = [srt_p.stem, srt_p.stem.removesuffix("_剪切稿")]
+        cands = [video.with_name(video.stem + ".cuts.json")]
+        cands += [srt_p.with_name(st + ".cuts.json") for st in stems]
+        cands += sorted(srt_p.parent.glob("*.cuts.json"))
+        for cand in cands:
+            if cand.exists():
+                cuts_path = cand
+                break
+    if args.no_cuts:
         cuts_path = None
     retakes = []
     if cuts_path:

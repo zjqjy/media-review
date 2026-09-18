@@ -112,10 +112,20 @@ def main():
     dur = duration_of(video)
     spans = build_spans(entries, dur, args.pad, args.gap)
 
-    cuts_path = Path(args.cuts) if args.cuts else \
-        video.with_name(video.stem + ".cuts.json")
-    if args.cuts is None and not cuts_path.exists():
-        cuts_path = None
+    # cuts.json 查找顺序：显式指定 → 视频同目录 → srt 同目录（剪切稿常带"_剪切稿"
+    # 后缀，转录稿名 = 剪切稿名去后缀；两种都对得上才找得到）
+    cuts_path = Path(args.cuts) if args.cuts else None
+    if cuts_path is None:
+        srt_p = Path(args.srt)
+        stems = [srt_p.stem, srt_p.stem.removesuffix("_剪切稿")]
+        cands = [video.with_name(video.stem + ".cuts.json")]
+        cands += [srt_p.with_name(st + ".cuts.json") for st in stems]
+        cands += [p for p in sorted(srt_p.parent.glob("*.cuts.json"))
+                  if p.stem.startswith(stems[0].split("_trimmed")[0])]  # 同目录兜底需同素材前缀
+        for cand in cands:
+            if cand.exists():
+                cuts_path = cand
+                break
     if cuts_path:
         holes = load_cuts(cuts_path)
         n_before = len(spans)
