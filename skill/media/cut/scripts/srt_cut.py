@@ -58,20 +58,23 @@ def build_spans(entries, dur, pad, gap):
     return spans
 
 
-def subtract_intervals(spans, cuts, keep=0.0, min_cut=0.15):
+def subtract_intervals(spans, cuts, keep=0.0, min_cut=0.15, pre_roll=0.0):
     """从保留区间里挖洞（口头禅词级跳剪/区间内静音细剪共用）。
 
-    cuts: [(s,e)] 待挖区间；keep 每侧留缓冲，挖剩不足 min_cut 的不动。
+    cuts: [(s,e)] 待挖区间；min_cut 以下的不挖。
+    pre_roll：洞起点向前多咬 N 秒——ASR 条目/词级时间戳普遍滞后实际发声
+    （实测 ~0.3s），不预咬会把口误句的第一个字留在成片里。
+    keep：挖洞后保留侧再回退 N 秒（pad 伸进洞口的兜底）。
     """
     fine = []
     for s, e in spans:
         cur = s
-        for cs, ce in cuts:
-            cs, ce = max(cs + keep, s), min(ce - keep, e)
+        for cs, ce in sorted(cuts):
+            cs, ce = max(cs - pre_roll, s), min(ce, e)
             if ce - cs < min_cut:
                 continue
             if cs > cur:
-                fine.append((cur, cs))
+                fine.append((cur, max(cur, cs - keep)))
                 cur = ce
             elif ce > cur:
                 cur = ce
@@ -129,7 +132,7 @@ def main():
     if cuts_path:
         holes = load_cuts(cuts_path)
         n_before = len(spans)
-        spans = subtract_intervals(spans, holes)
+        spans = subtract_intervals(spans, holes, pre_roll=0.3, keep=0.1)
         t0 = sum(e - s for s, e in spans)
         print(f"[srt_cut] 词级跳剪：从 {cuts_path.name} 挖掉 {len(holes)} 个口头禅"
               f"（{n_before} 段 → {len(spans)} 段）")

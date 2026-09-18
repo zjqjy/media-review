@@ -145,7 +145,7 @@ def main():
         pairs = raw.get("retake_pairs", []) if isinstance(raw, dict) else []
         retake_holes = [c for c in raw.get("fillers", [])
                         if isinstance(raw, dict) and c.get("word") == "🔁重录"]
-        spans = subtract_intervals(spans, holes)
+        spans = subtract_intervals(spans, holes, pre_roll=0.3, keep=0.1)
         print(f"[jy_draft] 词级跳剪：挖掉 {len(holes)} 个洞"
               f"（含 {len(pairs)} 组重录对前遍，默认保末遍）")
 

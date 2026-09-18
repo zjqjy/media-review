@@ -82,6 +82,28 @@ def build_entries(text, ts, fillers=()):
         nxt = toks[idx + 1] if idx + 1 < len(toks) else None
         if nxt is not None and not any(p in "。？！；，" for p in text[cj:nxt[0]]):
             continue
+        # 条内叠词挖洞：音频真说了两遍（"上期上期""在使用在使用"），留一遍。
+        # 判定：相邻 token 组 A、B 文本相同且 A 结束到 B 起点的间隙很小（≤0.35s，
+        # 同一次口播里的重复，不是重录），挖 A 留 B。
+        k2 = 0
+        while k2 < len(cur) - 1:
+            grp_len = 1
+            # 只处理 1-4 字的短叠词组
+            while grp_len <= 4 and k2 + 2 * grp_len <= len(cur):
+                g1 = cur[k2:k2 + grp_len]
+                g2 = cur[k2 + grp_len:k2 + 2 * grp_len]
+                t1 = "".join(text[a:b] for a, b, _ in g1)
+                t2 = "".join(text[a:b] for a, b, _ in g2)
+                if t1 == t2 and re.fullmatch(r"[\u3400-\u9fff]+", t1):
+                    gap = g2[0][2][0] - g1[-1][2][1]
+                    if gap <= 350:
+                        cuts.append({"start": g1[0][2][0], "end": g1[-1][2][1],
+                                     "word": f"叠词·{t1}"})
+                        del cur[k2:k2 + grp_len]
+                        k2 -= 1
+                        break
+                grp_len += 1
+            k2 += 1
         # 句子闭合：句首口头禅剥成洞（词级跳剪用），正文作为条目
         for f in fillers:
             n_tok = len(f)  # filler 全汉字，一字一 token
