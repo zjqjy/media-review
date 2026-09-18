@@ -82,7 +82,7 @@ def find_config(explicit=None):
 
 
 def load_config(path):
-    cfg = json.loads(path.read_text(encoding="utf-8"))
+    cfg = json.loads(path.read_text(encoding="utf-8-sig"))
     if not cfg.get("sessdata"):
         die(f"{path} 里 sessdata 为空")
     return cfg
@@ -388,7 +388,7 @@ def main():
                 "（文件不存在会自动创建，schema 见仓根 config.example.json）")
         path = Path(args.config)
         if path.is_file():
-            cfg = json.loads(path.read_text(encoding="utf-8"))
+            cfg = json.loads(path.read_text(encoding="utf-8-sig"))
         else:
             # 自动建配置：从就近的 config.example.json 继承完整 schema（paths 免填），
             # 找不到 example 才退最小骨架
@@ -396,7 +396,7 @@ def main():
             for anc in [path.parent, *path.parents]:
                 ex = anc / "config.example.json"
                 if ex.is_file():
-                    cfg = json.loads(ex.read_text(encoding="utf-8"))
+                    cfg = json.loads(ex.read_text(encoding="utf-8-sig"))
                     cfg["sessdata"] = ""
                     break
             if cfg is None:

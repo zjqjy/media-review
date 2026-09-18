@@ -61,7 +61,22 @@ if ($LASTEXITCODE -ne 0) {
         python -m pip install "torchaudio==$torchVer" --no-deps
     }
 }
-Write-Host "[OK] 依赖就绪（funasr 首次转录还会从 ModelScope 下约 1.2G 模型，直连国内网即可）"
+python -c "import funasr, torchaudio" 2>$null
+if ($LASTEXITCODE -eq 0) {
+    python -c "import modelscope" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[..] 安装 modelscope（模型下载通道）..."
+        python -m pip install modelscope
+    }
+    Write-Host "[..] 预下载 FunASR 语音模型（约 1.2G，国内直连几分钟；转录时免等）..."
+    python -c "from funasr import AutoModel; AutoModel(model='paraformer-zh', vad_model='fsmn-vad', punc_model='ct-punc-c', disable_update=True)" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] 语音模型已就绪（本地缓存，转录直接加载）"
+    } else {
+        Write-Host "[WARN] 模型预下载失败——不影响安装，首次转录时会自动重下" -ForegroundColor Yellow
+    }
+}
+Write-Host "[OK] 依赖就绪"
 
 # 3. 复制 skill（镜像：删掉旧内容再拷，改代码后重跑即可更新）
 foreach ($skill in $skills) {
@@ -82,18 +97,38 @@ foreach ($legacy in @("media-review", "media-cut")) {
     }
 }
 
-# 4. 配置骨架自动生成（零人工起步：用户之后只需跑一次 login 扫码）
+# 4. 配置骨架自动生成 + 知识库路径弹窗选择（零人工起步：之后只需一次扫码）
 $cfgFile = Join-Path $PSScriptRoot "_config_local.json"
 $cfgExample = Join-Path $PSScriptRoot "config.example.json"
 if (-not (Test-Path $cfgFile) -and (Test-Path $cfgExample)) {
     Copy-Item $cfgExample $cfgFile
-    Write-Host "[OK] 已生成配置 _config_local.json（SESSDATA 待填）" 
+    Write-Host "[OK] 已生成配置 _config_local.json（SESSDATA 待扫码写入）"
+}
+
+if (Test-Path $cfgFile) {
+    $cfg = Get-Content $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $unset = (-not $cfg.vault_path) -or ($cfg.vault_path -like "*你的知识库*")
+    if ($unset) {
+        Write-Host "[..] 弹窗选择知识库根目录（复盘报告/截图/逐字稿将存其下）..."
+        Add-Type -AssemblyName System.Windows.Forms | Out-Null
+        $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+        $dlg.Description = "选择知识库根目录（复盘数据保存在其下；具体目录结构可在 _config_local.json 的 paths 里改）"
+        $dlg.ShowNewFolderButton = $true
+        if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $cfg.vault_path = $dlg.SelectedPath
+            $json = $cfg | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText($cfgFile, $json, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "[OK] 知识库路径已写入：$($dlg.SelectedPath)"
+        } else {
+            Write-Host "[跳过] 未选择——之后可手动填 _config_local.json 的 vault_path"
+        }
+    }
 }
 
 # 5. 配置指引
 Write-Host ""
 Write-Host "== 剩下一步（只需一次扫码） ==" -ForegroundColor Yellow
-Write-Host "配置 _config_local.json 已在仓根生成；直接跑扫码登录，SESSDATA 自动写入："
+Write-Host "配置 _config_local.json 已就绪，直接跑扫码登录，SESSDATA 自动写入："
 Write-Host "  python skill/media/review/scripts/fetch_bili.py login --config _config_local.json"
-Write-Host "（F12 手动复制 SESSDATA 为备用方案；paths 各键不填即用默认目录结构）"
+Write-Host "（F12 手动复制 SESSDATA 为备用方案）"
 Write-Host "然后在 Claude Code 里喊 /media 试跑"

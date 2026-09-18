@@ -41,7 +41,7 @@ cd media-review
 .\install.ps1
 ```
 
-install.ps1 装 skill 到 `~/.claude/skills/media/`、检查全部 Python 依赖、并自动生成配置骨架 `_config_local.json`。之后**只需一次扫码**：
+install.ps1 装 skill 到 `~/.claude/skills/media/`、检查全部 Python 依赖、**弹窗让你选知识库根目录**（复盘数据保存位置，自动写进配置）、并预下载语音模型（FunASR ~1.2G，国内直连几分钟，转录时免等）。之后**只需一次扫码**：
 
 ```powershell
 python skill/media/review/scripts/fetch_bili.py login --config _config_local.json
