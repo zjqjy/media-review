@@ -1,4 +1,4 @@
-﻿# media-review 自媒体 skill 集安装器：装 media 门面技能到 ~/.claude/skills/，检查 Python 依赖
+﻿# media-review 自媒体 skill 集安装器：装 media 技能到 ZCode/Claude Code 技能目录，检查 Python 依赖
 # 用法：powershell -ExecutionPolicy Bypass -File install.ps1
 
 $ErrorActionPreference = "Stop"
@@ -98,22 +98,28 @@ if ($LASTEXITCODE -eq 0) {
 Write-Host "[OK] 依赖就绪"
 
 # 3. 复制 skill（镜像：删掉旧内容再拷，改代码后重跑即可更新）
+# 装进两个运行时的技能目录：ZCode（~/.zcode/skills）+ Claude Code（~/.claude/skills）
+$skillRoots = @((Join-Path $HOME ".zcode\skills"), (Join-Path $HOME ".claude\skills"))
 foreach ($skill in $skills) {
     $skillSrc = Join-Path $PSScriptRoot "skill\$skill"
-    $skillDst = Join-Path $HOME ".claude\skills\$skill"
-    if (Test-Path $skillDst) { Remove-Item $skillDst -Recurse -Force }
-    New-Item -ItemType Directory -Path $skillDst -Force | Out-Null
-    Copy-Item "$skillSrc\*" $skillDst -Recurse -Force
-    Get-ChildItem $skillDst -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-    Write-Host "[OK] $skill 已安装到 $skillDst"
+    foreach ($root in $skillRoots) {
+        $skillDst = Join-Path $root $skill
+        if (Test-Path $skillDst) { Remove-Item $skillDst -Recurse -Force }
+        New-Item -ItemType Directory -Path $skillDst -Force | Out-Null
+        Copy-Item "$skillSrc\*" $skillDst -Recurse -Force
+        Get-ChildItem $skillDst -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+        Write-Host "[OK] $skill 已安装到 $skillDst"
+    }
 }
 
 # 旧版拆装的独立 skill 目录清理（media-review / media-cut 已并为 media 的子技能，留着会重复触发）
-foreach ($legacy in @("media-review", "media-cut")) {
-    $legacyDst = Join-Path $HOME ".claude\skills\$legacy"
-    if (Test-Path $legacyDst) {
-        Remove-Item $legacyDst -Recurse -Force
-        Write-Host "[OK] 已清理旧 skill 目录 $legacyDst"
+foreach ($root in $skillRoots) {
+    foreach ($legacy in @("media-review", "media-cut")) {
+        $legacyDst = Join-Path $root $legacy
+        if (Test-Path $legacyDst) {
+            Remove-Item $legacyDst -Recurse -Force
+            Write-Host "[OK] 已清理旧 skill 目录 $legacyDst"
+        }
     }
 }
 
