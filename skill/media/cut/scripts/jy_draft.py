@@ -171,6 +171,61 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
     return material, spans, sub_entries, anno_entries, {"holes": holes_total}
 
 
+def register_in_root_meta(folder: Path, name: str):
+    """把草稿登记进剪映根目录的 root_meta_info.json 索引。
+
+    新版剪映的草稿列表读的是这个**登记表**，只建目录不登记 = 草稿隐形
+    （BUG 2026-09-19）。pyJianYingDraft 模板的 meta 路径/时间戳全是空值，
+    所以这里克隆登记表中已注册条目当字段模板，逐项补全；幂等（同名刷新）。
+    """
+    import copy
+    import time
+    root_meta = folder / "root_meta_info.json"
+    if not root_meta.exists():
+        print("[jy_draft] 提示：剪映根目录无 root_meta_info.json（旧版扫目录），跳过登记")
+        return
+    registry = json.loads(root_meta.read_text(encoding="utf-8-sig"))
+    store = registry.setdefault("all_draft_store", [])
+
+    draft_dir = folder / name
+    meta = json.loads((draft_dir / "draft_meta_info.json").read_text(encoding="utf-8-sig"))
+    content = json.loads((draft_dir / "draft_content.json").read_text(encoding="utf-8-sig"))
+    now_us = int(time.time() * 1e6)
+    fold = str(draft_dir).replace("\\", "/")
+    size = sum(f.stat().st_size for f in draft_dir.rglob("*") if f.is_file())
+
+    tmpl = next((e for e in store if e.get("draft_fold_path")), None)
+    entry = copy.deepcopy(tmpl) if tmpl else {}
+    entry.update({
+        "draft_id": meta.get("draft_id", ""),
+        "draft_name": name,
+        "draft_fold_path": fold,
+        "draft_json_file": fold + "/draft_content.json",
+        "draft_cover": fold + "/draft_cover.jpg",
+        "draft_root_path": str(folder),
+        "draft_new_version": "164.0.0",
+        "draft_timeline_materials_size": size,
+        "tm_draft_create": meta.get("tm_draft_create") or now_us,
+        "tm_draft_modified": now_us,
+        "tm_duration": content.get("duration", 0),
+        "tm_draft_removed": 0,
+        "draft_is_invisible": False,
+        "draft_type": entry.get("draft_type", ""),
+    })
+    old = next((e for e in store if e.get("draft_name") == name), None)
+    if old is not None:
+        entry["tm_draft_create"] = old.get("tm_draft_create") or entry["tm_draft_create"]
+        store[store.index(old)] = entry
+        action = "刷新"
+    else:
+        store.append(entry)
+        action = "登记"
+    registry["draft_ids"] = len(store)
+    root_meta.write_text(json.dumps(registry, ensure_ascii=False, indent=1),
+                         encoding="utf-8")
+    print(f"[jy_draft] 已{action}到剪映草稿索引（root_meta_info.json，共 {len(store)} 条）")
+
+
 def main():
     ap = argparse.ArgumentParser(description="剪映草稿直出（主轨保留段+字幕轨+标注轨，支持多段按序）")
     ap.add_argument("video", nargs="?", default=None, help="单段模式：视频")
@@ -287,6 +342,9 @@ def main():
     meta["draft_id"] = str(uuid.uuid4()).upper()
     meta["draft_name"] = name
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=4), encoding="utf-8")
+
+    # 登记进 root_meta_info.json 索引——不登记草稿在剪映列表里隐形
+    register_in_root_meta(folder, name)
 
     kept = t_us / 1e6
     print(f"[jy_draft] 草稿已生成：{folder / name}")
