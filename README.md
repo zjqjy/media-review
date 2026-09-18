@@ -50,9 +50,11 @@ install.ps1 装 skill 到 `~/.claude/skills/media/` 并检查全部 Python 依�
 | pyJianYingDraft | cut 草稿直出 | 轻量 |
 | funasr + torch + torchaudio | cut 转录 | torch 级重依赖；**装包开 VPN，转录下模型（ModelScope ~1.2G）关 VPN 直连** |
 
+**配置**（review 用，也可选）：复制仓根 `config.example.json` 为 `_config_local.json`（放哪都行，gitignore 已覆盖），填入 SESSDATA。`paths` 各键自定义你知识库的目录结构——**全部可选**，缺省用作者的个人结构（见 example），完整自定义即可适配任何知识库，不要求你新建特定目录。
+
 **B站登录**（review 用，二选一）：
 
-- 扫码（推荐）：`python skill/media/review/scripts/fetch_bili.py login --config "<vault>\20_自媒体\复盘\_config_local.json"`，二维码自动弹出，B站 App 扫一下即写入
+- 扫码（推荐）：`python skill/media/review/scripts/fetch_bili.py login --config "你的_config_local.json"`，二维码自动弹出，B站 App 扫一下即写入
 - 手动：F12 → Application → Cookies → 复制 SESSDATA 到 `_config_local.json`（该文件 gitignore，不入库）
 
 ## 使用
@@ -93,6 +95,7 @@ skill/media/cut/scripts/jy_draft.py       ③剪映草稿直出（pyJianYingDraf
 skill/media/review/SKILL.md         review 子技能（按期复盘规程）
 skill/media/review/scripts/fetch_bili.py  B站取数（纯标准库）
 skill/media/review/scripts/screenshot_tray.py  截图收集窗（tkinter+Pillow）
+config.example.json                 配置模板（Cookie + 知识库目录结构，全部路径可自定义）
 install.ps1                         安装 skill + 全部依赖
 tests/                              unittest + fixtures
 docs/design.md                      复盘系统设计文档

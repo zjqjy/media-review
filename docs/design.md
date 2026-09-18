@@ -49,6 +49,8 @@ sources:
 
 ## 四、架构
 
+> 下图目录结构是**作者个人知识库的配置**（即 `paths` 各键的默认值）；开源用户的结构经 `config.example.json` 完全自定义，不要求一致。
+
 ```
 触发：/media-review
         │

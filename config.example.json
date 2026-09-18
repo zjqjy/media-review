@@ -1,0 +1,14 @@
+{
+  "sessdata": "把B站网页F12→Application→Cookies→bilibili.com→SESSDATA的值粘到这里",
+  "vault_path": "D:/你的知识库根目录（可选，缺省时从本配置文件位置向上推断）",
+  "paths": {
+    "review": "20_自媒体/复盘",
+    "screenshots": "20_自媒体/复盘/_截图收件",
+    "transcripts": "20_自媒体/复盘/逐字稿",
+    "topics": "20_自媒体/选题池",
+    "clips": "20_自媒体/复用片段",
+    "benchmarks": "20_自媒体/对标",
+    "planning_ref": "20_自媒体/复盘/_下期规划参考.md",
+    "archive": "06_归档/截图收件备份"
+  }
+}

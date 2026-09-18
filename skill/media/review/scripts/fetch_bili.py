@@ -14,7 +14,7 @@
   python fetch_bili.py retention --bvid BVxx     # 单稿件深度数据：流失曲线(逐5秒,含同类对照)
                                                  # + B站 AI 解读 + 稿件详情（可 --cid 指定分P）
   通用参数：--config PATH（默认自动找 vault 侧 _config_local.json）
-           --out FILE（默认写 vault/20_自媒体/复盘/_data/，- 表示 stdout）
+           --out FILE（默认写知识库复盘数据目录，- 表示 stdout）
            --dry-run（只打印不写盘）
 """
 
@@ -77,7 +77,7 @@ def find_config(explicit=None):
         if candidate.is_file():
             return candidate
     die("找不到 _config_local.json（含 sessdata）。"
-        "把 vault 侧 20_自媒体/复盘/_config_local.example.json 复制为 _config_local.json 并填 Cookie，"
+        "把仓根 config.example.json 复制为 _config_local.json 填好 Cookie，"
         "或用 --config 显式指定路径")
 
 
@@ -90,7 +90,7 @@ def load_config(path):
 
 def vault_root(cfg, config_path):
     """vault 根目录：显式配置优先，否则从配置文件位置推断
-    （配置位于 <vault>/20_自媒体/复盘/_config_local.json → parents[2] 即 vault 根）。"""
+    （配置文件里 vault_path 字段优先；缺省时假设配置在知识库复盘目录下，按 parents[2] 推断）。"""
     vp = cfg.get("vault_path")
     if vp:
         return Path(vp)
@@ -384,8 +384,8 @@ def main():
     if args.command == "login":
         # login 不要求配置已存在：新建或更新 sessdata 字段
         if not args.config:
-            die("login 需要指定配置路径：--config <vault>/20_自媒体/复盘/_config_local.json"
-                "（文件不存在会自动创建）")
+            die("login 需要指定配置路径：--config 你的_config_local.json"
+                "（文件不存在会自动创建，schema 见仓根 config.example.json）")
         path = Path(args.config)
         cfg = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"vault_path": str(path.parents[2])}
         cmd_login(path, cfg)
@@ -393,7 +393,8 @@ def main():
 
     cfg_path = find_config(args.config)
     cfg = load_config(cfg_path)
-    data_dir = vault_root(cfg, cfg_path) / "20_自媒体" / "复盘" / "_data"
+    review_dir = (cfg.get("paths") or {}).get("review", "20_自媒体/复盘")
+    data_dir = vault_root(cfg, cfg_path) / review_dir / "_data"
     out = args.out or f"{args.command}_{date.today():%Y%m%d}.json"
 
     if args.command == "list":

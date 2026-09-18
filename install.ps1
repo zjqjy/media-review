@@ -85,7 +85,7 @@ foreach ($legacy in @("media-review", "media-cut")) {
 # 4. 配置指引
 Write-Host ""
 Write-Host "== 剩下一步 ==" -ForegroundColor Yellow
-Write-Host "1. 打开 vault: 20_自媒体/复盘/_config_local.example.json"
-Write-Host "2. 复制为 _config_local.json（同目录），填入 SESSDATA："
+Write-Host "1. 复制仓根 config.example.json 为 _config_local.json（同目录），填入 SESSDATA："
 Write-Host "   B站网页 F12 → Application → Cookies → bilibili.com → SESSDATA"
-Write-Host "3. 在 Claude Code 里喊 /media-review 试跑"
+Write-Host "   paths 各键可自定义你知识库的目录结构（全部可选）"
+Write-Host "2. 在 Claude Code 里喊 /media 试跑"

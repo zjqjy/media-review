@@ -18,7 +18,7 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 - **ffmpeg** 自动发现：PATH → `imageio_ffmpeg` 自带二进制。都没有 → `winget install ffmpeg` 或 `pip install imageio-ffmpeg`
 - **第②层转录**：自研 `scripts/asr_funasr.py`（FunASR Paraformer + VAD + 标点，中文 CER ~10%，Whisper 的一半）。依赖 funasr（torch 级，安装需用户点头）；模型走 ModelScope 国内 CDN——**下载模型关 VPN 直连，pip 装包才开 VPN**，首跑 ~1.2G。备选：AutoCut（Whisper，英文素材或要验证它的工作流再装）
 - **第③层脚本**：`scripts/jy_draft.py`（剪映草稿直出）+ `scripts/srt_cut.py`（重编码出粗片，fallback）；均零 ffmpeg 外依赖，复用同一套区间数学
-- 逐字稿归档需要 vault 路径；若 cwd 就是 vault（能找到 `20_自媒体/`），路径相对 cwd
+- 逐字稿归档与规划参考的路径走 review 的同一份 `_config_local.json` 配置（`transcripts`/`planning_ref` 键，见仓根 `config.example.json`；不存在的目录首次使用时问用户）；若 cwd 就是知识库根，相对路径直接用
 
 ## 流程
 
@@ -59,7 +59,7 @@ CPU 几分钟出稿（Paraformer 非自回归架构，CPU 亲和，无需 GPU）
 
 ### 3. 第②层 b：AI 初选（本 skill 的主力工作）
 
-1. 要**内容大纲**：读 `20_自媒体/复盘/_下期规划参考.md` 或本期规划笔记；没有就用户口述三句——给谁看 / 解决什么问题 / 关键步骤
+1. 要**内容大纲**：读 `planning_ref` 配置文件（下期规划参考）；没有就用户口述三句——给谁看 / 解决什么问题 / 关键步骤
 2. 读转录稿逐句标三类：
    - **保留**：核心步骤、结论、金句
    - **删**：跑题、重复、死胡同、口误重录的前一次
@@ -91,9 +91,9 @@ python scripts/jy_draft.py 素材_trimmed.mp4 剪切稿.srt --name "第N期_标�
 
 ### 5. 副产物归档（喂 review，闭环）
 
-- 逐字稿（保留原文含口误，**不是**剪切稿）→ `<vault>/20_自媒体/复盘/逐字稿/第N期_标题_逐字稿.md`，frontmatter 标期数，正文末尾追加一行漏斗数据：`原始 3h → ①静音压缩后 1h02m（砍66%）→ ②粗剪后 12m`
+- 逐字稿（保留原文含口误，**不是**剪切稿）→ `transcripts` 配置目录下 `第N期_标题_逐字稿.md`，frontmatter 标期数，正文末尾追加一行漏斗数据：`原始 3h → ①静音压缩后 1h02m（砍66%）→ ②粗剪后 12m`
 - 这份文件就是 review 复盘时逐字稿分析的输入，归档后告知用户"复盘时不用再贴逐字稿了"
-- vault 改动 `git add . && git commit -m "AI: 剪辑提效 第N期 逐字稿归档"`
+- vault 改动 `git add . && git commit -m "AI: 剪辑提效 第N期 逐字稿归档"`（知识库是 git 仓库时）
 
 ### 6. 发布后复核（与 review 闭环，剪完不是终点）
 

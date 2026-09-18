@@ -1,12 +1,12 @@
 # media-review 开发上下文
 
-自媒体 skill：`/media` 一个入口，门面路由两个子技能——**cut**（发前剪辑提效）+ **review**（发后数据复盘）。设计文档：复盘系统以 vault `03_项目/自媒体复盘系统/设计文档.md` 为准（本仓 `docs/design.md` 是同步副本）；剪辑提效以 vault `30_方法论/剪辑提效工作流.md` 为准（方法论沉淀，skill 是其执行规程）。
+自媒体 skill：`/media` 一个入口，门面路由两个子技能——**cut**（发前剪辑提效）+ **review**（发后数据复盘）。设计文档：复盘系统以 vault `03_项目/自媒体复盘系统/设计文档.md` 为准（本仓 `docs/design.md` 是同步副本；vault 是作者个人知识库，不开源）；剪辑提效以 vault `30_方法论/剪辑提效工作流.md` 为准（方法论沉淀，skill 是其执行规程）。所有知识库路径走 `_config_local.json` 的 `paths` 配置（schema 见仓根 `config.example.json`），不硬编码个人目录结构。
 
 ## 这是什么
 
 单个 skill（`skill/media/`），门面 SKILL.md 按用户意图分发到子技能目录：
 
-- **cut**：三层漏斗粗剪——①静音压缩（`silence_trim.py`）→ ②FunASR 转录（`asr_funasr.py`，热词可加；AutoCut/Whisper 备选）+ AI 初选删行（人工复核后 `srt_cut.py` 剪切）→ ③精剪交接；逐字稿归档 vault `20_自媒体/复盘/逐字稿/`，是 review 复盘的直接输入（发前喂发后闭环）
+- **cut**：三层漏斗粗剪——①静音压缩（`silence_trim.py`）→ ②FunASR 转录（`asr_funasr.py`，热词可加；AutoCut/Whisper 备选）+ AI 初选删行（人工复核后 `srt_cut.py` 剪切）→ ③精剪交接；逐字稿归档知识库 `transcripts` 配置目录，是 review 复盘的直接输入（发前喂发后闭环）
 - **review**：清算到期观察点（D+3/D+7/D+30）→ B站自动取数（创作中心接口，Cookie 鉴权）→ 收集窗贴抖音/小红书截图 → 按爆款公式三要素（选题×素材×内容）归因 → 复盘报告写回 Obsidian vault → 半自动写回选题池/复用片段/对标
 
 ## 结构
