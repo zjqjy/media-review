@@ -16,6 +16,7 @@
 """
 
 import argparse
+import json
 import re
 import sys
 import tempfile
@@ -28,22 +29,23 @@ DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lve
 RED = (1.0, 0.35, 0.35)
 
 
-def make_annotations(entries):
+def make_annotations(entries, retakes=None):
     """从剪切稿条目自动出标注：[(start_s, end_s, 标签+摘句)]。
 
     规则（按需往这里加）：
     - 句内叠词（并将并将 / 等待一会儿等待一类） → [口吃·重说]
+    - 重录对（retake_pairs）：已按用户规则保末遍挖前遍；标注保留供复核推翻
     （句首口头禅"然后"已由转录时词级剥离，不再进句子）
     """
     out = []
     for s, e, txt in entries:
-        tags = []
         m = re.search(r"([\u4e00-\u9fff]{2})\1", txt)
         if m:
-            tags.append(f"口吃·重说「{m.group(1)}」")
-        if tags:
             brief = txt[:14] + ("…" if len(txt) > 14 else "")
-            out.append((s, e, f"[{'|'.join(tags)}] {brief}"))
+            out.append((s, e, f"[口吃·重说「{m.group(1)}」] {brief}"))
+    for p in (retakes or []):
+        out.append((p["a_start"], p["a_start"] + 0.1,
+                    f"🔁重录对已保B删A（sim={p['sim']}）B:{p['text_b'][:16]}——听错可换回"))
     return out
 
 
@@ -121,16 +123,21 @@ def main():
     spans = build_spans(entries, total_us / 1e6, args.pad, args.gap)
     n_coarse = len(spans)
 
-    # 词级跳剪：句首口头禅洞（转录自动产出，与视频同名 .cuts.json）
+    # 词级跳剪：句首口头禅洞 + 重录对前遍（转录自动产出，与视频同名 .cuts.json）
     cuts_path = Path(args.cuts) if args.cuts else \
         video.with_name(video.stem + ".cuts.json")
     if (args.no_cuts or not cuts_path.exists()) and args.cuts is None:
         cuts_path = None
+    retakes = []
     if cuts_path:
         holes = load_cuts(cuts_path)
+        raw = json.loads(cuts_path.read_text(encoding="utf-8-sig"))
+        pairs = raw.get("retake_pairs", []) if isinstance(raw, dict) else []
+        retake_holes = [c for c in raw.get("fillers", [])
+                        if isinstance(raw, dict) and c.get("word") == "🔁重录"]
         spans = subtract_intervals(spans, holes)
-        print(f"[jy_draft] 词级跳剪：挖掉 {len(holes)} 个口头禅"
-              f"（{cuts_path.name}）")
+        print(f"[jy_draft] 词级跳剪：挖掉 {len(holes)} 个洞"
+              f"（含 {len(pairs)} 组重录对前遍，默认保末遍）")
 
     if args.min_inner > 0:
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
@@ -160,7 +167,12 @@ def main():
         sub_srt = Path(td) / "sub.srt"
         n = rebase_srt(entries, spans, sub_srt)
         script.import_srt(str(sub_srt), "字幕")
-        anno = make_annotations(entries)
+        retakes = []
+        for h in retake_holes:
+            # A 遍已挖掉：标注挂在挖洞位置（rebase 后≈其所在保留区间的末端）
+            retakes.append({"a_start": h["start"] / 1000, "sim": "—",
+                            "text_b": h.get("retake_of", "")})
+        anno = make_annotations(entries, retakes)
         if anno:
             anno_srt = Path(td) / "anno.srt"
             na = rebase_srt(anno, spans, anno_srt)

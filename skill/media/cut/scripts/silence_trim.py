@@ -131,6 +131,21 @@ def main():
     kept = dur - removed
     print(f"[silence_trim] 完成 → {out}")
     print(f"  原始 {fmt(dur)} → 压缩后约 {fmt(kept)}（砍掉 {removed/dur:.0%}）")
+    # 停顿落盘：被砍区间是"重录分隔符"，下游靠它配重录对（BUG_重录对误删）
+    import json as _json
+    spans_kept = []
+    cur = 0.0
+    for s, e in silences:
+        if s > cur:
+            spans_kept.append([round(cur, 3), round(s, 3)])
+        cur = max(cur, e)
+    if dur > cur:
+        spans_kept.append([round(cur, 3), round(dur, 3)])
+    sil = video.with_name(f"{video.stem}.silence.json")
+    sil.write_text(_json.dumps(
+        {"cut": [[round(s, 3), round(e, 3)] for s, e in silences],
+         "kept": spans_kept}, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"  停顿记录 → {sil.name}（cut=被砍冷场 kept=保留段，供重录对配对）")
     print("  下一步：asr_funasr.py 转录 → AI 初选删行 → srt_cut.py 剪出粗片")
 
 

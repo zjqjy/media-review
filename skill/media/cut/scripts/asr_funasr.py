@@ -15,6 +15,7 @@ import argparse
 import json
 import re
 import tempfile
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from silence_trim import FFMPEG, run  # 同目录，复用 ffmpeg 通道
@@ -97,6 +98,48 @@ def build_entries(text, ts, fillers=()):
     return entries, cuts
 
 
+def _norm(text):
+    """归一化文本：去标点/空白，叠词折叠（在使用在使用→在使用），供重录对比对。"""
+    t = re.sub(r"[^\w\u3400-\u9fff]", "", text)
+    t = re.sub(r"([\u3400-\u9fff]{1,4})\1+", r"\1", t)
+    return t
+
+
+def detect_retake_pairs(sents, min_sim=0.55, min_ratio=0.35, max_gap_s=6.0, window=3):
+    """重录对检测（窗口内链式）：口误→[停顿]→重说，重说可连续多遍（6→7→8 链）。
+
+    对每条 b，在前 window 条里找被 b 覆盖的 a。判定（全部满足）：
+    - 覆盖率 cov（a 归一化后被 b 最长匹配覆盖）≥min_sim，且 ratio ≥min_ratio
+      ——实测校准：真重录 #4→#5 cov=0.57/#6→#8 cov=0.58/#7→#8 cov=0.67，
+      而"在这过程中"类口播高频短句对 #9→#11/#12 cov 也 0.60，纯文本分不开，
+      所以叠加：a 归一化长度 ≥6 字（超短短语必须 cov≥0.9 才算），且
+    - gap ≤max_gap_s（口误后立即重说；#9→#12 gap=9.8s 的真重复靠初选人工兜底）
+    返回 [{a,b,sim,gap_ms,text_a,text_b}]。用户规则：**保最后一个**，a 进 cuts。
+    """
+    pairs = []
+    for j, b in enumerate(sents):
+        nb = _norm(b[2])
+        if not nb or len(nb) < 8:
+            continue
+        for i in range(max(0, j - window), j):
+            a = sents[i]
+            na = _norm(a[2])
+            if not na or len(na) > len(nb):
+                continue
+            sm = SequenceMatcher(None, na, nb)
+            m = sm.find_longest_match(0, len(na), 0, len(nb))
+            cov = m.size / len(na) if len(na) else 0.0
+            ratio = sm.ratio()
+            short = len(na) < 6
+            if cov >= (0.9 if short else min_sim) and ratio >= (0.7 if short else min_ratio):
+                gap_s = (b[0] - a[1]) / 1000
+                if gap_s <= max_gap_s:
+                    pairs.append({"a": i + 1, "b": j + 1, "sim": round(max(cov, ratio), 2),
+                                  "gap_ms": int(b[0] - a[1]),
+                                  "text_a": a[2], "text_b": b[2]})
+    return pairs
+
+
 def extract_wav(media: Path, tmpdir: str) -> Path:
     """视频抽 16k 单声道 wav（Paraformer 的输入格式）；已是 wav 则直通。"""
     if media.suffix.lower() == ".wav":
@@ -147,15 +190,33 @@ def main():
         sents, cuts = build_entries(r["text"], r["timestamp"], fillers)
     else:
         sents, cuts = [(0, 0, r.get("text", ""))], []
+
+    # 重录对：口误→停顿→重说。保删规则（用户拍板）：保最后一个，前遍进 cuts 挖掉
+    retakes = detect_retake_pairs(sents)
+    for p in retakes:
+        a = sents[p["a"] - 1]
+        cuts.append({"start": a[0], "end": a[1], "word": "🔁重录",
+                     "retake_of": sents[p["b"] - 1][2]})
     with open(out, "w", encoding="utf-8") as f:
         for i, (a, b, txt) in enumerate(sents, 1):
             f.write(f"{i}\n{fmt_ts(a)} --> {fmt_ts(b)}\n{txt}\n\n")
+    payload = {}
     if cuts:
+        payload["fillers"] = cuts
+    if retakes:
+        payload["retake_pairs"] = retakes
+    if payload:
         cuts_path = out.with_suffix(".cuts.json")
-        cuts_path.write_text(json.dumps(cuts, ensure_ascii=False, indent=1),
+        cuts_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
                              encoding="utf-8")
-        print(f"[asr_funasr] 口头禅洞 {len(cuts)} 个 → {cuts_path}"
-              f"（剪切时自动抠掉：{'、'.join(sorted({c['word'] for c in cuts}))}）")
+        if cuts:
+            words = sorted({c["word"] for c in cuts})
+            print(f"[asr_funasr] 词级洞 {len(cuts)} 个（{'、'.join(words)}）")
+        if retakes:
+            print(f"[asr_funasr] 重录对 {len(retakes)} 组（默认保最后一个，前遍已挖）:")
+            for p in retakes:
+                print(f"  #{p['a']}/{p['b']} sim={p['sim']} → 保: [{fmt_ts(sents[p['b']-1][0])[3:8]}] {p['text_b']}")
+        print(f"[asr_funasr] → {out.with_suffix('.cuts.json')}")
     print(f"[asr_funasr] {len(sents)} 句 → {out}")
     for a, b, txt in sents:
         print(f"[{fmt_ts(a)[3:8]}] {txt}")

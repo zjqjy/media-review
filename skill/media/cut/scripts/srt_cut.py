@@ -81,10 +81,16 @@ def subtract_intervals(spans, cuts, keep=0.0, min_cut=0.15):
 
 
 def load_cuts(path):
-    """asr_funasr 产出的 .cuts.json → [(s,e)] 秒。"""
+    """asr_funasr 产出的 .cuts.json → [(s,e)] 秒。
+
+    兼容两种格式：旧版裸列表（口头禅洞）；新版 {fillers:[], retake_pairs:[]}
+    ——retake 对的前遍也在 fillers 里（word=🔁重录），直接合并。
+    """
     import json
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [(c["start"] / 1000, c["end"] / 1000) for c in data]
+    if isinstance(data, list):
+        return [(c["start"] / 1000, c["end"] / 1000) for c in data]
+    return [(c["start"] / 1000, c["end"] / 1000) for c in data.get("fillers", [])]
 
 
 def main():
