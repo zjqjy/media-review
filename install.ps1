@@ -85,6 +85,7 @@ foreach ($skill in $skills) {
     if (Test-Path $skillDst) { Remove-Item $skillDst -Recurse -Force }
     New-Item -ItemType Directory -Path $skillDst -Force | Out-Null
     Copy-Item "$skillSrc\*" $skillDst -Recurse -Force
+    Get-ChildItem $skillDst -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
     Write-Host "[OK] $skill 已安装到 $skillDst"
 }
 
