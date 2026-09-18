@@ -36,10 +36,10 @@ skill/media/
 要求：Windows + Python 3.10+ + 剪映专业版（可选，草稿直出用）。
 
 ```powershell
-git clone https://github.com/zjqjy/media-review.git
-cd media-review
-.\install.ps1
+git clone https://github.com/zjqjy/media-review.git; cd media-review; .\install.ps1
 ```
+
+> clone 只下载文件，不会也不应自动执行远程脚本——安装脚本需要你手动跑这一次（上面整行复制即可）。
 
 install.ps1 装 skill 到 `~/.claude/skills/media/`、检查全部 Python 依赖、**弹窗让你选知识库根目录**（复盘数据保存位置，自动写进配置）、并预下载语音模型（FunASR ~1.2G，国内直连几分钟，转录时免等）。之后**只需一次扫码**：
 
