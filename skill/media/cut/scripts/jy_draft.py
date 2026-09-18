@@ -282,7 +282,17 @@ def main():
     ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
     ap.add_argument("--cuts", default=None, help="口头禅洞 .cuts.json（单段模式）")
     ap.add_argument("--no-cuts", action="store_true", help="不做词级跳剪")
+    ap.add_argument("--force", action="store_true",
+                    help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）")
     args = ap.parse_args()
+
+    if not args.force:
+        import subprocess
+        tl = subprocess.run(["tasklist", "/FI", "IMAGENAME eq JianyingPro.exe"],
+                            capture_output=True, text=True)
+        if "JianyingPro.exe" in tl.stdout:
+            sys.exit("检测到剪映正在运行——运行中的剪映退出时可能把新生成的草稿扫进它的回收站\n"
+                     "（实测踩坑 2026-09-19）。请先关闭剪映再重跑本命令；确要继续加 --force")
 
     # 组装段列表 [(video, cut_srt)]
     segs = []
