@@ -387,7 +387,25 @@ def main():
             die("login 需要指定配置路径：--config 你的_config_local.json"
                 "（文件不存在会自动创建，schema 见仓根 config.example.json）")
         path = Path(args.config)
-        cfg = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"vault_path": str(path.parents[2])}
+        if path.is_file():
+            cfg = json.loads(path.read_text(encoding="utf-8"))
+        else:
+            # 自动建配置：从就近的 config.example.json 继承完整 schema（paths 免填），
+            # 找不到 example 才退最小骨架
+            cfg = None
+            for anc in [path.parent, *path.parents]:
+                ex = anc / "config.example.json"
+                if ex.is_file():
+                    cfg = json.loads(ex.read_text(encoding="utf-8"))
+                    cfg["sessdata"] = ""
+                    break
+            if cfg is None:
+                cfg = {}
+            cfg.setdefault("vault_path",
+                           str(path.parents[2]) if len(path.parents) >= 3 else str(path.parent))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[fetch_bili] 已生成配置骨架 → {path}（paths 可后续自定义，不填用默认）")
         cmd_login(path, cfg)
         return
 

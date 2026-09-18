@@ -82,10 +82,18 @@ foreach ($legacy in @("media-review", "media-cut")) {
     }
 }
 
-# 4. 配置指引
+# 4. 配置骨架自动生成（零人工起步：用户之后只需跑一次 login 扫码）
+$cfgFile = Join-Path $PSScriptRoot "_config_local.json"
+$cfgExample = Join-Path $PSScriptRoot "config.example.json"
+if (-not (Test-Path $cfgFile) -and (Test-Path $cfgExample)) {
+    Copy-Item $cfgExample $cfgFile
+    Write-Host "[OK] 已生成配置 _config_local.json（SESSDATA 待填）" 
+}
+
+# 5. 配置指引
 Write-Host ""
-Write-Host "== 剩下一步 ==" -ForegroundColor Yellow
-Write-Host "1. 复制仓根 config.example.json 为 _config_local.json（同目录），填入 SESSDATA："
-Write-Host "   B站网页 F12 → Application → Cookies → bilibili.com → SESSDATA"
-Write-Host "   paths 各键可自定义你知识库的目录结构（全部可选）"
-Write-Host "2. 在 Claude Code 里喊 /media 试跑"
+Write-Host "== 剩下一步（只需一次扫码） ==" -ForegroundColor Yellow
+Write-Host "配置 _config_local.json 已在仓根生成；直接跑扫码登录，SESSDATA 自动写入："
+Write-Host "  python skill/media/review/scripts/fetch_bili.py login --config _config_local.json"
+Write-Host "（F12 手动复制 SESSDATA 为备用方案；paths 各键不填即用默认目录结构）"
+Write-Host "然后在 Claude Code 里喊 /media 试跑"

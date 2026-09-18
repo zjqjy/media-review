@@ -36,7 +36,7 @@ description: media 子技能：发布后数据复盘（按期，三平台合参�
 
 ## 前置
 
-- Cookie 未配置/失效时，让用户自己跑：`python scripts/fetch_bili.py login --config "<配置文件路径>"` → 二维码图片自动弹出 → B站 App 扫码 → SESSDATA 自动写入配置（需 `pip install qrcode`）。用户也可 F12 手动复制
+- **配置初始化（零人工）**：`_config_local.json` 不存在时，不要让用户手动编辑——直接给一条命令让用户跑：`python scripts/fetch_bili.py login --config "_config_local.json"`，自动生成配置骨架（继承 example 的 paths schema）→ 二维码弹出 → B站 App 扫码 → SESSDATA 自动写入。此后 paths 一个字不用填（缺省目录结构即用）。F12 手动复制 SESSDATA 仅为备用方案
 - 脚本：本 skill 目录下 `scripts/fetch_bili.py`（取数零依赖；login 另需 qrcode）；收集窗 `scripts/screenshot_tray.py`（需 Pillow）
 - **逐字稿**：数据之外必须结合内容本身。取数阶段主动向用户要**本期剪辑后的逐字稿**（粘贴文本即可；还没剪完就用大纲顶，标注"大纲版"；`transcripts` 目录下已有本期文件——cut 子技能粗剪归档的副产物——则直接读，不再要）。逐字稿用于：开头钩子分析（对照留存曲线的流失时间点）、结构 vs 数据对照（哪段内容对应 retention 凸起/崩塌）、口播质量。只看数据不看内容 = 只能说"开头差"，说不了"为什么差、怎么改"。**收到后落盘存档**：`<transcripts>/第N期_标题_逐字稿.md`（保留原文含口误，frontmatter 标期数，双链复盘报告），报告"相关"节回链
 

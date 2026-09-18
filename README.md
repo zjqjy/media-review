@@ -41,7 +41,15 @@ cd media-review
 .\install.ps1
 ```
 
-install.ps1 装 skill 到 `~/.claude/skills/media/` 并检查全部 Python 依赖：
+install.ps1 装 skill 到 `~/.claude/skills/media/`、检查全部 Python 依赖、并自动生成配置骨架 `_config_local.json`。之后**只需一次扫码**：
+
+```powershell
+python skill/media/review/scripts/fetch_bili.py login --config _config_local.json
+```
+
+二维码自动弹出 → B站 App 扫一下 → SESSDATA 自动写入。没有别的手动步骤（`paths` 目录结构全部可选，不填用默认；F12 手动复制 SESSDATA 仅作备用）。
+
+install.ps1 检查/安装的 Python 依赖：
 
 | 依赖 | 用途 | 说明 |
 |---|---|---|
@@ -49,13 +57,6 @@ install.ps1 装 skill 到 `~/.claude/skills/media/` 并检查全部 Python 依�
 | imageio-ffmpeg（或 PATH ffmpeg） | cut 全部剪切脚本 | 随包二进制，无需全局安装 |
 | pyJianYingDraft | cut 草稿直出 | 轻量 |
 | funasr + torch + torchaudio | cut 转录 | torch 级重依赖；**装包开 VPN，转录下模型（ModelScope ~1.2G）关 VPN 直连** |
-
-**配置**（review 用，也可选）：复制仓根 `config.example.json` 为 `_config_local.json`（放哪都行，gitignore 已覆盖），填入 SESSDATA。`paths` 各键自定义你知识库的目录结构——**全部可选**，缺省用作者的个人结构（见 example），完整自定义即可适配任何知识库，不要求你新建特定目录。
-
-**B站登录**（review 用，二选一）：
-
-- 扫码（推荐）：`python skill/media/review/scripts/fetch_bili.py login --config "你的_config_local.json"`，二维码自动弹出，B站 App 扫一下即写入
-- 手动：F12 → Application → Cookies → 复制 SESSDATA 到 `_config_local.json`（该文件 gitignore，不入库）
 
 ## 使用
 
