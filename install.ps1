@@ -68,12 +68,31 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host "[..] 安装 modelscope（模型下载通道）..."
         python -m pip install modelscope
     }
-    Write-Host "[..] 预下载 FunASR 语音模型（约 1.2G，国内直连几分钟；转录时免等）..."
-    python -c "from funasr import AutoModel; AutoModel(model='paraformer-zh', vad_model='fsmn-vad', punc_model='ct-punc-c', disable_update=True)" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "[OK] 语音模型已就绪（本地缓存，转录直接加载）"
+    # 模型缓存检测：三个模型目录齐全就跳过下载，不让用户反复下
+    $msModels = if ($env:MODELSCOPE_CACHE) { Join-Path $env:MODELSCOPE_CACHE "models" }
+                else { Join-Path $HOME ".cache\modelscope\models" }
+    $modelDirs = @(
+        "iic--speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "iic--speech_fsmn_vad_zh-cn-16k-common-pytorch",
+        "iic--punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+    )
+    $missing = $modelDirs | Where-Object { -not (Test-Path (Join-Path $msModels $_)) }
+    if (-not $missing) {
+        Write-Host "[OK] FunASR 语音模型已在本地缓存（$msModels），跳过下载"
     } else {
-        Write-Host "[WARN] 模型预下载失败——不影响安装，首次转录时会自动重下" -ForegroundColor Yellow
+        Write-Host "[..] 预下载 FunASR 语音模型（约 1.2G，国内直连几分钟；转录时免等）..."
+        python -c "from funasr import AutoModel; AutoModel(model='paraformer-zh', vad_model='fsmn-vad', punc_model='ct-punc-c', disable_update=True)" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $record = @{
+                downloaded_at = (Get-Date -Format "yyyy-MM-dd HH:mm")
+                models = $modelDirs
+                cache = $msModels
+            }
+            $record | ConvertTo-Json | Out-File (Join-Path (Split-Path $msModels -Parent) "media_models_record.json") -Encoding utf8
+            Write-Host "[OK] 语音模型下载完成，已记录（$msModels）"
+        } else {
+            Write-Host "[WARN] 模型预下载失败——不影响安装，首次转录时会自动重下" -ForegroundColor Yellow
+        }
     }
 }
 Write-Host "[OK] 依赖就绪"
