@@ -25,7 +25,44 @@ from srt_cut import build_spans, load_cuts, parse_srt, subtract_intervals
 from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
+STATE_FILE = Path.home() / ".media_cut_draft_root"  # 记住用户在剪映里改过的草稿位置
 RED = (1.0, 0.35, 0.35)
+
+# root_meta_info.json 登记条目的全字段模板（自剪映 11.x 已注册条目解剖）
+DEFAULT_ENTRY = {
+    "cloud_draft_cover": False, "cloud_draft_sync": False,
+    "draft_cloud_last_action_download": False, "draft_cloud_purchase_info": "",
+    "draft_cloud_template_id": "", "draft_cloud_tutorial_info": "",
+    "draft_cloud_videocut_purchase_info": "", "draft_cover": "",
+    "draft_fold_path": "", "draft_id": "", "draft_is_ai_shorts": False,
+    "draft_is_cloud_temp_draft": False, "draft_is_infinite_canvas_draft": False,
+    "draft_is_invisible": False, "draft_is_pippit_draft": False,
+    "draft_is_web_article_video": False, "draft_json_file": "", "draft_name": "",
+    "draft_new_version": "164.0.0", "draft_root_path": "",
+    "draft_timeline_materials_size": 0, "draft_type": "",
+    "draft_web_article_video_enter_from": "", "pippit_avatar_url": "",
+    "pippit_extra_info": "", "pippit_id": "", "pippit_user_name": "",
+    "streaming_edit_draft_ready": True, "tm_draft_cloud_completed": "",
+    "tm_draft_cloud_entry_id": -1, "tm_draft_cloud_modified": 0,
+    "tm_draft_cloud_parent_entry_id": -1, "tm_draft_cloud_space_id": -1,
+    "tm_draft_cloud_user_id": -1, "tm_draft_create": 0, "tm_draft_modified": 0,
+    "tm_draft_removed": 0, "tm_duration": 0,
+}
+
+
+def resolve_draft_root(explicit=None):
+    """草稿根解析：显式 --draft-folder → 状态文件（上次用过的位置）→ 剪映默认。
+
+    用户在剪映全局设置改"草稿位置"后，老默认就作废了——成功生成一次后
+    会把新位置写进 STATE_FILE，之后不用再传参。
+    """
+    if explicit:
+        return Path(explicit)
+    if STATE_FILE.exists():
+        p = Path(STATE_FILE.read_text(encoding="utf-8").strip())
+        if p.exists():
+            return p
+    return DRAFT_ROOT
 
 
 def make_annotations(entries, retakes=None):
@@ -182,9 +219,11 @@ def register_in_root_meta(folder: Path, name: str):
     import time
     root_meta = folder / "root_meta_info.json"
     if not root_meta.exists():
-        print("[jy_draft] 提示：剪映根目录无 root_meta_info.json（旧版扫目录），跳过登记")
-        return
-    registry = json.loads(root_meta.read_text(encoding="utf-8-sig"))
+        # 新根目录（用户改过草稿位置）还没有登记表——创建一份，别跳过
+        registry = {"all_draft_store": [], "draft_ids": 0, "root_path": str(folder)}
+        print("[jy_draft] 新草稿根无登记表，已创建 root_meta_info.json")
+    else:
+        registry = json.loads(root_meta.read_text(encoding="utf-8-sig"))
     store = registry.setdefault("all_draft_store", [])
 
     draft_dir = folder / name
@@ -195,7 +234,7 @@ def register_in_root_meta(folder: Path, name: str):
     size = sum(f.stat().st_size for f in draft_dir.rglob("*") if f.is_file())
 
     tmpl = next((e for e in store if e.get("draft_fold_path")), None)
-    entry = copy.deepcopy(tmpl) if tmpl else {}
+    entry = copy.deepcopy(tmpl) if tmpl else copy.deepcopy(DEFAULT_ENTRY)
     entry.update({
         "draft_id": meta.get("draft_id", ""),
         "draft_name": name,
@@ -232,7 +271,8 @@ def main():
     ap.add_argument("cut_srt", nargs="?", default=None, help="单段模式：剪切稿 srt")
     ap.add_argument("--seq", nargs="*", default=None,
                     help='多段模式：按顺序 "视频=剪切稿" 列表（素材按序号命名，草稿按序拼）')
-    ap.add_argument("--draft-folder", default=str(DRAFT_ROOT))
+    ap.add_argument("--draft-folder", default=None,
+                    help="草稿根目录；缺省读状态文件(上次位置)，再退剪映默认")
     ap.add_argument("--name", default=None)
     ap.add_argument("--pad", type=float, default=0.2)
     ap.add_argument("--gap", type=float, default=0.4)
@@ -266,7 +306,7 @@ def main():
         sys.exit("缺依赖：pip install pyJianYingDraft")
 
     first_video = segs[0][0]
-    folder = Path(args.draft_folder)
+    folder = resolve_draft_root(args.draft_folder)
     if not folder.exists():
         sys.exit(f"剪映草稿目录不存在：{folder}（剪映全局设置→草稿位置，用 --draft-folder 指定）")
     name = args.name or f"media_cut_{first_video.stem}_粗剪"
@@ -358,6 +398,9 @@ def main():
 
     # 登记进 root_meta_info.json 索引——不登记草稿在剪映列表里隐形
     register_in_root_meta(folder, name)
+
+    # 持久化本次草稿根：下次不用再传 --draft-folder
+    STATE_FILE.write_text(str(folder), encoding="utf-8")
 
     kept = t_us / 1e6
     print(f"[jy_draft] 草稿已生成：{folder / name}")
