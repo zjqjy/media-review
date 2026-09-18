@@ -271,6 +271,19 @@ def main():
         sys.exit(f"剪映草稿目录不存在：{folder}（剪映全局设置→草稿位置，用 --draft-folder 指定）")
     name = args.name or f"media_cut_{first_video.stem}_粗剪"
 
+    # 防覆盖：剪映打开过草稿后会把 draft_content.json 改写成自有混淆格式
+    # （BUG 报告 2026-09-19）。同名重新生成前先检测——是剪映改写过的就不动。
+    existing = folder / name / "draft_content.json"
+    if existing.exists():
+        try:
+            old_content = json.loads(existing.read_text(encoding="utf-8-sig"))
+            touched_by_jy = old_content.get("new_version") not in (None, "110.0.0")
+        except Exception:
+            touched_by_jy = True  # 混淆/损坏，解析不了 = 剪映碰过
+        if touched_by_jy:
+            sys.exit(f"草稿 {name} 已被剪映打开/修改过（内容是剪映自有格式），"
+                     f"重新生成会覆盖你的手工剪辑——换一个 --name，或先在剪映里备份")
+
     probe = VideoMaterial(str(first_video))
     script = DraftFolder(str(folder)).create_draft(
         name, probe.width, probe.height, fps=args.fps, allow_replace=True)
