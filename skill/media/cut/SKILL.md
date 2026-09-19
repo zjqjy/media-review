@@ -84,6 +84,7 @@ python scripts/jy_draft.py 素材_trimmed.mp4 剪切稿.srt --name "第N期_标�
 - 主视频轨 = 全部保留区间，引用原素材（**不重编码零损失**），剪切点在剪映里仍是可拖动的分割线
 - 字幕轨 = 剪切稿（已 rebase 到成片时间轴）
 - **标注轨** = 红色置顶文本，自动标第②层处理不了、留给精剪的点（句内叠词口吃等）。**导出成片前删掉该轨**
+- **加速不属粗剪（2026-09-19 用户决策）**：粗剪所有段 1.0x 交付，加速/BGM/花字全在精剪域。`--narr-speed/--gap-speed` 参数保留为精剪步骤可用（如参考天书实测的 2.0x/6.0x），但默认必须 1.0
 - 词级跳剪：转录产出的 `.cuts.json`（句首"然后"等口头禅的词级时间）在生成草稿时自动从音频抠掉，字幕文本同步剥字；`--no-cuts` 关闭
 - 依赖 `pip install pyJianYingDraft`（轻量）；草稿写进剪映草稿目录（默认 `AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft`，不同装法用 `--draft-folder` 指定），打开剪映首页即见
 - 要独立粗片文件（如发抖音版先用）→ fallback 走 `srt_cut.py` 重编码出片

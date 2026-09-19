@@ -299,9 +299,9 @@ def main():
     ap.add_argument("--force", action="store_true",
                     help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）")
     ap.add_argument("--narr-speed", type=float, default=1.0,
-                    help="解说段（有字幕覆盖）播放速度，对齐人工加速节奏")
+                    help="解说段播放速度。粗剪保持 1.0；加速属精剪域，测好后作为精剪步骤用")
     ap.add_argument("--gap-speed", type=float, default=1.0,
-                    help="无字幕区间（纯操作/等待）播放速度")
+                    help="无字幕区间播放速度。粗剪保持 1.0（2026-09-19 用户决策：加速不属粗剪）")
     args = ap.parse_args()
 
     if not args.force:
