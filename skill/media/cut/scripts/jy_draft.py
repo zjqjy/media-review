@@ -443,8 +443,11 @@ def main():
             n_map += 1
         print(f"[jy_draft] 交付两件套：草稿快照 → {snap}；剪法清单 {n_map} 份 → 各素材目录")
 
-    # 持久化本次草稿根：下次不用再传 --draft-folder
-    STATE_FILE.write_text(str(folder), encoding="utf-8")
+    # 持久化本次草稿根：下次不用再传 --draft-folder。
+    # 显式传 --draft-folder 的一次性用法（临时目录/验证）不落状态——否则状态文件
+    # 指向临时目录，后续默认生成会写错地方（实测踩坑：生成的草稿随临时目录一起被清）
+    if args.draft_folder is None:
+        STATE_FILE.write_text(str(folder), encoding="utf-8")
 
     kept = t_us / 1e6
     print(f"[jy_draft] 草稿已生成：{folder / name}")
