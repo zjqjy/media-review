@@ -309,8 +309,10 @@ def main():
 
     if not args.force:
         import subprocess
+        # 中文 Windows 的 tasklist 输出是 OEM/GBK 编码，按 utf-8 硬解会在读取线程里炸
         tl = subprocess.run(["tasklist", "/FI", "IMAGENAME eq JianyingPro.exe"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
         if "JianyingPro.exe" in (tl.stdout or ""):
             sys.exit("检测到剪映正在运行——运行中的剪映退出时可能把新生成的草稿扫进它的回收站\n"
                      "（实测踩坑 2026-09-19）。请先关闭剪映再重跑本命令；确要继续加 --force")

@@ -23,6 +23,19 @@ from silence_trim import FFMPEG, run  # 同目录，复用 ffmpeg 通道
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 CJK_RE = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
 PUNCT_SKIP = "，。？！；：、,"
+# 收句标点：ct-punc 实测输出半角逗号/句号（环境搭建 16 逗号全是半角），漏判会把
+# 分句粘连成一条（"按Ctrl+Shift+P,然后输入…"），句首口头禅剥不到——口癖漏剪根因
+CLAUSE_END_RE = re.compile(r"[。？！；，,.!?;]")
+
+
+def _clause_end(text, gap_start, gap_end, prev_tok):
+    """token 间隙里出现收句标点即分条；数字间的小数点/千位符（3.5 / 1,000）不收。"""
+    m = CLAUSE_END_RE.search(text, gap_start, gap_end)
+    if not m:
+        return False
+    if m.group() in ",." and prev_tok[-1:].isdigit() and text[gap_end:gap_end + 1].isdigit():
+        return False
+    return True
 
 
 def _token_spans(text):
@@ -41,15 +54,43 @@ def _token_spans(text):
     return spans
 
 
+def _merge_runs(text, spans, seps):
+    """把被 seps 中字符打断的英数 run 合回一个 span（there's → there + 's 合并）。
+
+    ASR 把缩写当一个词给时间戳，而 span 按字符切——差 1 个 token 就整篇对不上
+    词级对齐（实测 there's 导致 2079≠2078 全篇降级按比例，时间戳失真）。
+    """
+    out = []
+    for a, b in spans:
+        if out:
+            pa, pb = out[-1]
+            between = text[pb:a]
+            if between and all(c in seps for c in between) and \
+                    re.match(r"[A-Za-z0-9]", text[pb - 1:pb]) and \
+                    re.match(r"[A-Za-z0-9]", text[a:a + 1]):
+                out[-1] = (pa, b)
+                continue
+        out.append((a, b))
+    return out
+
+
 def build_entries(text, ts, fillers=()):
     """字级时间戳 → 标点分句条目 [(start_ms, end_ms, 句子)] + 口头禅洞 cuts。
 
-    fillers 里的句首口头禅（如"然后"）不进句子，而是记成洞
+    fillers 里的分句首口头禅（如"然后"）不进句子，而是记成洞
     [{"start":ms,"end":ms,"word":词}]，剪切时从音频里精确抠掉（词级跳剪）。
     数目对不上 → 按比例兜底（此时出不了洞，口头禅留在句子里）。
     """
     cuts = []
     spans = _token_spans(text)
+    if len(spans) != len(ts):
+        # 渐进合并重试：撇号缩写（there's）→ 连字符词（ESP-IDF）逐级尝试，
+        # 对上才保得住词级对齐；全对不上才按比例兜底
+        for seps in ("'’", "'’-"):
+            merged = _merge_runs(text, spans, seps)
+            if len(merged) == len(ts):
+                spans = merged
+                break
     if len(spans) != len(ts):
         odd = sorted({c for c in text
                       if not (CJK_RE.match(c) or TOKEN_RE.fullmatch(c)
@@ -80,21 +121,23 @@ def build_entries(text, ts, fillers=()):
     for idx, (ci, cj, t) in enumerate(toks):
         cur.append((ci, cj, t))
         nxt = toks[idx + 1] if idx + 1 < len(toks) else None
-        if nxt is not None and not any(p in "。？！；，" for p in text[cj:nxt[0]]):
+        if nxt is not None and not _clause_end(text, cj, nxt[0],
+                                               text[cur[-1][0]:cur[-1][1]]):
             continue
-        # 条内叠词挖洞：音频真说了两遍（"上期上期""在使用在使用"），留一遍。
+        # 条内叠词挖洞：音频真说了两遍（"上期上期""Claude Code Claude Code"），留一遍。
         # 判定：相邻 token 组 A、B 文本相同且 A 结束到 B 起点的间隙很小（≤0.35s，
-        # 同一次口播里的重复，不是重录），挖 A 留 B。
+        # 同一次口播里的重复，不是重录），挖 A 留 B。汉字组 1-4 字；英文/数字组同限 4 token。
         k2 = 0
         while k2 < len(cur) - 1:
             grp_len = 1
-            # 只处理 1-4 字的短叠词组
             while grp_len <= 4 and k2 + 2 * grp_len <= len(cur):
                 g1 = cur[k2:k2 + grp_len]
                 g2 = cur[k2 + grp_len:k2 + 2 * grp_len]
                 t1 = "".join(text[a:b] for a, b, _ in g1)
                 t2 = "".join(text[a:b] for a, b, _ in g2)
-                if t1 == t2 and re.fullmatch(r"[\u3400-\u9fff]+", t1):
+                if t1 == t2 and len(t1) <= 20 and \
+                        (re.fullmatch(r"[\u3400-\u9fff]+", t1)
+                         or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ]*", t1)):
                     gap = g2[0][2][0] - g1[-1][2][1]
                     if gap <= 350:
                         cuts.append({"start": g1[0][2][0], "end": g1[-1][2][1],
@@ -104,17 +147,21 @@ def build_entries(text, ts, fillers=()):
                         break
                 grp_len += 1
             k2 += 1
-        # 句子闭合：句首口头禅剥成洞（词级跳剪用），正文作为条目
-        for f in fillers:
-            n_tok = len(f)  # filler 全汉字，一字一 token
-            if len(cur) > n_tok and \
-                    "".join(text[a:b] for a, b, _ in cur[:n_tok]) == f:
-                cuts.append({"start": cur[0][2][0], "end": cur[n_tok - 1][2][1],
-                             "word": f})
-                cur = cur[n_tok:]
-                break
+        # 分句首口头禅剥成洞（词级跳剪用），可连环剥（"然后然后""然后呃"）
+        changed = True
+        while changed:
+            changed = False
+            for f in fillers:
+                n_tok = len(f)  # filler 全汉字，一字一 token
+                if len(cur) > n_tok and \
+                        "".join(text[a:b] for a, b, _ in cur[:n_tok]) == f:
+                    cuts.append({"start": cur[0][2][0], "end": cur[n_tok - 1][2][1],
+                                 "word": f})
+                    cur = cur[n_tok:]
+                    changed = True
+                    break
         word = text[cur[0][0]:cur[-1][1]]
-        word = re.sub(r"^[，,]", "", word).strip()
+        word = re.sub(r"^[，,．.。;；\s]+", "", word).strip()
         entries.append((cur[0][2][0], cur[-1][2][1], word))
         cur = []
     return entries, cuts
@@ -186,7 +233,7 @@ def main():
                     help="输出 srt 路径（仅单文件时有效；多文件写在各自旁边）")
     ap.add_argument("--hotword", default="", help="热词，空格分隔（技术词塞这里准确率立涨）")
     ap.add_argument("--strip-filler", default="然后",
-                    help="句首口头禅词级剥离（逗号分隔多个），记入 .cuts.json 供剪切时抠掉；空串=关闭")
+                    help="分句首口头禅词级剥离（逗号分隔多个），记入 .cuts.json 供剪切时抠掉；空串=关闭")
     args = ap.parse_args()
 
     from funasr import AutoModel  # torch 级重依赖，参数解析后再 import
