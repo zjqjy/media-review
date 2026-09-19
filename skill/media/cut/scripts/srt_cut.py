@@ -234,7 +234,7 @@ def process_one(video: Path, srt_path: Path, args):
     out.parent.mkdir(parents=True, exist_ok=True)
 
     # 字幕 rebase 到成片时间轴，与 mp4 同名同目录；断行成竖版可读的多行条目
-    n_sub = rebase_srt(entries, spans, out.with_suffix(".srt"), wrap_width=16)
+    n_sub = rebase_srt(entries, spans, out.with_suffix(".srt"), wrap_width=20)
 
     kept = sum(e - s for s, e in spans)
     conds = "+".join(f"between(t,{s:.2f},{e:.2f})" for s, e in spans)

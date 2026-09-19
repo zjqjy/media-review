@@ -29,6 +29,12 @@ DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lve
 STATE_FILE = Path.home() / ".media_cut_draft_root"  # 记住用户在剪映里改过的草稿位置
 RED = (1.0, 0.35, 0.35)
 
+# 字幕排版（2026-09-20 反馈校准：字号 5 偏大挡内容、单行"太靠上"）
+SUB_SIZE = 4.3        # 稍小但不看不清
+SUB_WRAP = 20         # 断行宽度：行数更少、底板更薄
+SUB_BOTTOM_Y = -0.86  # 末行锚点：无论几行，最底一行都贴在这个高度
+SUB_LINE_UNIT = 0.05  # 每多一行，文本框中心上移量（块向上生长，不压内容）
+
 # root_meta_info.json 登记条目的全字段模板（自剪映 11.x 已注册条目解剖）
 DEFAULT_ENTRY = {
     "cloud_draft_cover": False, "cloud_draft_sync": False,
@@ -78,9 +84,9 @@ def make_annotations(entries, retakes=None):
     """
     out = []
     for s, e, txt in entries:
-        w = disp_len(txt)
-        if w > 25:
-            out.append((s, e, f"[拆条·{int(w)}字] 精剪时把这句拆成两三条"))
+        n_lines = -(-int(disp_len(txt)) // SUB_WRAP)  # ceil 显示宽/断行宽
+        if n_lines >= 3:
+            out.append((s, e, f"[拆条·约{n_lines}行] 精剪时把这句拆成两三条"))
         m = re.search(r"([\u4e00-\u9fff]{2})\1", txt)
         if m:
             brief = txt[:14] + ("…" if len(txt) > 14 else "")
@@ -379,15 +385,15 @@ def main():
                 return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
             lines = []
             for i, (a, b, txt) in enumerate(entries, 1):
-                # 显示层断行：≤16 显示宽度/行（import_srt 的多行 content 原样进剪映）
-                lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt)}\n")
+                # 显示层断行：≤SUB_WRAP 显示宽度/行（import_srt 的多行 content 原样进剪映）
+                lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt, SUB_WRAP)}\n")
             Path(path).write_text("\n".join(lines), encoding="utf-8")
 
         write_srt(all_sub, Path(td) / "sub.srt")
         # 字幕可读性三件套：白字 + 黑描边 + 半透明黑底板——录屏常有纯白/浅色画面，
         # 只靠描边（v2 实测反馈）在浅背景下仍看不清，底板才是保底
         sub_ref = TextSegment("样式参考", Timerange(0, 1),
-                              style=TextStyle(size=5, color=(1.0, 1.0, 1.0),
+                              style=TextStyle(size=SUB_SIZE, color=(1.0, 1.0, 1.0),
                                               align=1, bold=True),
                               border=TextBorder(color=(0.0, 0.0, 0.0), width=40),
                               background=TextBackground(color="#000000", alpha=0.6,
@@ -400,6 +406,12 @@ def main():
             script.import_srt(str(Path(td) / "anno.srt"), "标注",
                               text_style=TextStyle(size=5, color=RED, bold=True, align=1),
                               clip_settings=ClipSettings(transform_y=0.8))
+        # 末行锚底（2026-09-20 反馈：单行字幕悬空"太靠上"、多行整块压内容）：
+        # 按每条实际行数微调文本框中心——末行恒贴 SUB_BOTTOM_Y，块向上生长不压中下部
+        for seg in script.tracks["字幕"].segments:
+            n_lines = seg.text.count("\n") + 1
+            seg.clip_settings.transform_y = (SUB_BOTTOM_Y
+                                             + (n_lines - 1) * SUB_LINE_UNIT)
     script.save()
 
     # pyJianYingDraft 模板 draft_id 固定，多草稿同 ID 会干扰剪映定位——随机化
