@@ -12,8 +12,8 @@
       "iron":   {"13": "我要看", "44": ""},               // 铁废料删条目→锚字（空串=跳过核验）
       "repeat": [                                          // 语义重复·删前留后（用户规则）
         {"del": [65, 99], "group": "B", "note": "新建工程讲两遍，删前留后",
-         "anchors": {"65": "再讲解", "99": "嗯"},
-         "keep_anchors": {"120": "演示一下ESP"}}            // 保留边界锚（防删穿到独有内容）
+         "anchors": {"65": "再讲解", "99": "嗯"},           // 也可用与 del 平行的锚字列表
+         "keep_anchors": {"120": "演示一下ESP"}}            // 也可用纯锚字列表（全文检索唯一定位）
       ],
       "fixes":  {"46": [["这几个文具", "这几个源"]]}        // 条内修错（只修错拼，不改写口播）
     }
@@ -155,14 +155,27 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
         entries = parse_srt(src)
         by_idx = {e["idx"]: e for e in entries}
 
-        del_set = set(int(k) for k in (plan.get("iron") or {}))
-        del_anchor = {int(k): v for k, v in (plan.get("iron") or {}).items()}
+        del_set, del_anchor = set(), {}
+        for k, v in (plan.get("iron") or {}).items():
+            del_set.add(int(k))
+            del_anchor[int(k)] = v
         for grp in plan.get("repeat") or []:
-            for i in grp.get("del", []):
-                del_set.add(int(i))
-                del_anchor[int(i)] = ""
-            for k, v in (grp.get("anchors") or {}).items():
-                del_anchor[int(k)] = v
+            dels = [int(i) for i in grp.get("del", [])]
+            del_set.update(dels)
+            av = grp.get("anchors") or {}
+            if isinstance(av, dict):
+                for k, v in av.items():
+                    del_anchor[int(k)] = v
+            else:
+                # 代理两种约定都收：与 del 平行的列表，或 [首锚, 尾锚]
+                if len(av) == len(dels):
+                    for i, v in zip(dels, av):
+                        del_anchor[i] = v
+                elif len(av) >= 1 and dels:
+                    del_anchor[dels[0]] = av[0]
+                    del_anchor[dels[-1]] = av[-1]
+                else:
+                    problems.append(f"[{name}] repeat anchors 为空但 del 非空")
         # 锚字核验：删条目内容必须含锚（防转录重跑后索引漂移删错句子）
         for i, anchor in sorted(del_anchor.items()):
             e = by_idx.get(i)
@@ -171,10 +184,24 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
             elif anchor and anchor not in e["text"]:
                 problems.append(f"[{name} #{i}] 删除锚字不符：预期含「{anchor}」，"
                                 f"实为「{e['text']}」")
-        # 保留边界锚：防范围删除删穿到独有内容
+        # 保留边界锚：防范围删除删穿到独有内容。
+        # 兼容 {条目号: 锚} 或纯锚字列表（后者按全文检索唯一定位条目）
         for grp in plan.get("repeat") or []:
-            for k, v in (grp.get("keep_anchors") or {}).items():
-                i = int(k)
+            kv = grp.get("keep_anchors") or {}
+            if isinstance(kv, dict):
+                pairs = [(int(k), v) for k, v in kv.items()]
+            else:
+                pairs = []
+                for v in kv:
+                    hits = [e for e in entries if v in e["text"]]
+                    kept = [e for e in hits if e["idx"] not in del_set]
+                    # 同文重录对会让 keep 锚命中删/留两条——语义上要保护的是留下那条
+                    if len(kept) == 1:
+                        pairs.append((kept[0]["idx"], v))
+                    else:
+                        problems.append(f"[{name}] keep_anchors「{v[:24]}」命中 {len(hits)} 条"
+                                        f"（剔除删除表后剩 {len(kept)}，需唯一）")
+            for i, v in pairs:
                 e = by_idx.get(i)
                 if e is None:
                     problems.append(f"[{name} #{i}] 保留锚找不到条目")
@@ -196,6 +223,8 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
             for old, new in (plan.get("fixes") or {}).get(str(e["idx"]), []):
                 if old in t:
                     t = t.replace(old, new)
+                elif old in e["text"]:
+                    pass  # 全局修错表已先修掉同一处——条目级重复申报，跳过不算错
                 else:
                     problems.append(f"[{name} #{e['idx']}] 修错表锚字不在稿里："
                                     f"「{old}」｜现文：「{e['text']}」")
