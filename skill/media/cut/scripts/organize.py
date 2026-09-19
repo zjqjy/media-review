@@ -6,6 +6,7 @@
   2_静音压缩/    <名>_trimmed.mp4 + <名>.silence.json（①层已退役为可选预览，老产物兼容）
   3_转录初选/    <名>.srt + <名>.cuts.json + <名>_剪切稿.srt + 初选日志.json
                  （老流程 <名>_trimmed.srt 同样归这里）
+  4_粗剪成片/    <名>_粗剪.mp4 + <名>_粗剪.srt（一进一出的分段成片，srt_cut --seq 产物）
   _工具/         *.py *.md *.scan.txt（匹配器/决定.json/报告）
 
 用法：python organize.py [工作区目录]（缺省当前目录）
@@ -15,6 +16,7 @@ import sys
 from pathlib import Path
 
 RULES = [  # (文件名模式, 目标目录)——顺序即优先级
+    ("4_粗剪成片", lambda n: "_粗剪" in n and n.endswith((".mp4", ".srt"))),
     ("1_原始", lambda n: n.endswith(".mp4") and "_trimmed" not in n),
     ("2_静音压缩", lambda n: "_trimmed.mp4" in n or n.endswith(".silence.json")),
     ("3_转录初选", lambda n: n.endswith("_剪切稿.srt") or n == "初选日志.json"

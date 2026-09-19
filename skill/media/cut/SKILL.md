@@ -77,6 +77,7 @@ python scripts/jy_draft.py 原素材.mp4 剪切稿.srt --name "第N期_标题_�
 - 词级跳剪：转录产出的 `.cuts.json`（句首"然后"等口头禅的词级时间）在生成草稿时自动从音频抠掉，字幕文本同步剥字；`--no-cuts` 关闭
 - 依赖 `pip install pyJianYingDraft`（轻量）；草稿写进剪映草稿目录（默认 `AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft`，不同装法用 `--draft-folder` 指定），打开剪映首页即见
 - 要独立粗片文件（如发抖音版先用）→ fallback 走 `srt_cut.py` 重编码出片
+- **要"一进一出"的分段成片**（每素材一个不拼接的粗剪文件，和草稿并存）：`python scripts/srt_cut.py --seq "素材1.mp4=剪切稿1.srt" "素材2.mp4=剪切稿2.srt" --out-dir 待粗剪/4_粗剪成片`——每素材输出 `<名>_粗剪.mp4` + 同名对齐字幕 srt（词级洞+静音细剪与草稿同款节奏）。重编码以分钟计，**后台跑**，不挡草稿交付；跑完 organize 归位到 `4_粗剪成片/`
 
 精剪重点提示用户：标注轨逐条处理（补录/加速/文字贴片），关键步骤动画/字幕强调，结尾 CTA 往"存着照做"上靠（认知②）。
 

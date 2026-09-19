@@ -21,7 +21,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srt_cut import build_spans, load_cuts, parse_srt, subtract_intervals
+from srt_cut import (build_spans, load_cuts, parse_srt, rebase_srt,
+                     subtract_intervals)
 from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
@@ -83,62 +84,6 @@ def make_annotations(entries, retakes=None):
         out.append((p["a_start"], p["a_start"] + 0.1,
                     f"🔁重录对已保B删A（sim={p['sim']}）B:{p['text_b'][:16]}——听错可换回"))
     return out
-
-
-def rebase_srt(entries, spans, path):
-    """源时间轴条目 → 成片时间轴 srt（按 spans 平移，与草稿主轨对齐）。
-
-    精确匹配失败（句首落在被挖的洞里）→ 取最近区间端点（距离超 1s 丢弃并计数）。
-    """
-    def target_of(src_start):
-        acc = 0.0
-        for sp in spans:
-            s, e = sp[0], sp[1]
-            speed = sp[2] if len(sp) > 2 else 1.0
-            if s - 0.001 <= src_start <= e + 0.001:
-                return acc + (src_start - s) / speed
-            acc += (e - s) / speed
-        best, best_d = None, 1.0
-        acc = 0.0
-        for sp in spans:
-            s, e = sp[0], sp[1]
-            speed = sp[2] if len(sp) > 2 else 1.0
-            if s <= src_start <= e:
-                d = 0.0
-                pos = acc + (src_start - s) / speed
-            else:
-                d = min(abs(src_start - s), abs(src_start - e))
-                pos = acc + min(max(src_start - s, 0), e - s) / speed
-            if d < best_d:
-                best_d, best = d, pos
-            acc += (e - s) / speed
-        return best
-
-    def fmt(t):
-        ms = int(round(t * 1000))
-        h, rem = divmod(ms, 3600000)
-        m, rem = divmod(rem, 60000)
-        s, ms2 = divmod(rem, 1000)
-        return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
-
-    lines = []
-    n = 0
-    dropped = 0
-    for s, e, txt in entries:
-        a, b = target_of(s), target_of(e)
-        if a is None or b is None or b <= a:
-            # 字幕落在被挖的洞里（短洞/口头禅）：钳到洞后最近保留点，不整条丢
-            a2, b2 = target_of(e), target_of(e + 0.5)
-            if a2 is None or b2 is None or b2 <= a2:
-                dropped += 1
-                continue
-            a, b = a2, b2
-        n += 1
-        lines.append(f"{n}\n{fmt(a)} --> {fmt(b)}\n{txt}\n")
-    if dropped:
-        print(f"[jy_draft] 提示：{dropped} 条字幕完全落在挖洞区被跳过")
-    Path(path).write_text("\n".join(lines), encoding="utf-8")
-    return n
 
 
 def find_cuts_json(video: Path, srt: Path, explicit=None):
