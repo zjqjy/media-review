@@ -14,6 +14,7 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 
 ## 前置
 
+- **依赖核验一律走 `python scripts/env_check.py`，不要手工逐个试**（2026-09-20：手工验依赖实测烧 ~6 min/期）。首跑全查几秒（用 importlib.metadata 查版本，**不 import torch/funasr**），结果缓存到技能安装目录 `_env_verified.json`；之后每期秒读缓存跳过。装了新包/换环境后 `--force` 刷新；缓存 30 天自动过期重查
 - **转录**：自研 `scripts/asr_funasr.py`（FunASR Paraformer + VAD + 标点，中文 CER ~10%，Whisper 的一半）。依赖 funasr（torch 级，安装需用户点头）；模型走 ModelScope 国内 CDN——**下载模型关 VPN 直连，pip 装包才开 VPN**，首跑 ~1.2G。备选：AutoCut（Whisper，英文素材或要验证它的工作流再装）
 - **初选执行器**：`scripts/select.py`（决定.json 进 → 剪切稿+日志出，锚字核验内建）+ `scripts/asr_fixes.json`（跨期沉淀的 ASR 错拼修错表，自动套用）
 - **ffmpeg** 自动发现：PATH → `imageio_ffmpeg` 自带二进制。都没有 → `winget install ffmpeg` 或 `pip install imageio-ffmpeg`
@@ -119,6 +120,7 @@ python scripts/jy_draft.py 原素材.mp4 剪切稿.srt --name "第N期_标题_�
 - **跑完管线执行 `organize.py <待粗剪目录>`** 归位阶段目录（1_原始/2_静音压缩/3_转录初选/_工具），不靠人肉整理；被占用的文件跳过并报告，关程序后重跑
 - **转录一律单批全量**：`asr_funasr.py 段1 段2 …` 一次吃完全部素材，模型只加载一次；按"编码完成先后"分批跑是白烧 2-4 min/次
 - **初选决定走 select.py，不再每期手写初选脚本**：AI 只产出 `初选决定.json`（iron/repeat/fixes）+ `--dry` 核验 + `--apply`；常见错拼沉淀进 `asr_fixes.json` 不重打
+- **依赖核验走 env_check.py 缓存**（首跑写技能安装目录 `_env_verified.json`，之后秒过不重验）；报缺包时重依赖（torch 级）仍要用户点头才装
 - **修错表应用前先 dry-run**：将替换的原/改句子对照打印过目再落盘（SSP三二→SESP32 返工教训；select.py --dry 内建）
 - **跨文件重复不做自动检测**：措辞不同的同场景重拍纯文本抓不到（实测 sim 仅 0.32），人工对读兜底；**同段内**重复由 select.py --scan 预聚类辅助 + AI 拍板
 - **零重编码架构（2026-09-19 落地）**：①层物理重编码已退出默认流程（实测省 ~13.5 min），转录直吃原素材音频（VAD 跳静音，30 min 素材 ~1.5 min），全流程单一原始时间轴；silence_trim.py 保留为预览/独立粗片用

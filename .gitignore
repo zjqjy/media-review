@@ -16,3 +16,4 @@ _config_local.yml
 Thumbs.db
 desktop.ini
 .DS_Store
+_env_verified.json
