@@ -21,8 +21,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srt_cut import (build_spans, load_cuts, parse_srt, rebase_srt,
-                     subtract_intervals)
+from srt_cut import (build_spans, disp_len, load_cuts, parse_srt, rebase_srt,
+                     subtract_intervals, wrap_zh)
 from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
@@ -70,12 +70,17 @@ def make_annotations(entries, retakes=None):
     """从剪切稿条目自动出标注：[(start_s, end_s, 标签+摘句)]。
 
     规则（按需往这里加）：
+    - 超长条（>25 显示宽度）：显示层已断行，但一句顶三行仍挤——记 [拆条]
+      提示精剪时拆成两三条（转录端二次切分只兜有停顿的，连读长句还是会超）
     - 句内叠词（并将并将 / 等待一会儿等待一类） → [口吃·重说]
     - 重录对（retake_pairs）：已按用户规则保末遍挖前遍；标注保留供复核推翻
-    （句首口头禅"然后"已由转录时词级剥离，不再进句子）
+    （分句首口头禅"然后"已由转录时词级剥离，不再进句子）
     """
     out = []
     for s, e, txt in entries:
+        w = disp_len(txt)
+        if w > 25:
+            out.append((s, e, f"[拆条·{int(w)}字] 精剪时把这句拆成两三条"))
         m = re.search(r"([\u4e00-\u9fff]{2})\1", txt)
         if m:
             brief = txt[:14] + ("…" if len(txt) > 14 else "")
@@ -345,6 +350,22 @@ def main():
 
     all_sub, all_anno = dedup(all_sub), dedup(all_anno)
 
+    # 落盘自校验：剪切稿条数 vs 字幕轨条数。静默丢条（挖洞/ASR 尾部时间戳滞后
+    # 被静音细剪裁掉）当场曝光，逐条列原文——2026-09-20 实测"音频在字幕丢"
+    # 人工反查 8 min 的教训，别再让它无声溜过
+    expected = []
+    for _, cut_srt in segs:
+        expected += [t for _, _, t in parse_srt(str(cut_srt))]
+    _norm = lambda t: re.sub(r"\s+", "", t)
+    have = {_norm(t) for _, _, t in all_sub}
+    missing = [t for t in expected if _norm(t) not in have]
+    if missing:
+        print(f"[jy_draft] !!! 自校验：剪切稿共 {len(expected)} 条，字幕轨只落 "
+              f"{len(all_sub)} 条，丢了 {len(missing)} 条（多为 ASR 结束时间戳晚于实际语音、"
+              f"尾部被静音细剪裁掉）：")
+        for t in missing:
+            print(f"    丢: {t[:50]}")
+
     if not all_sub:
         sys.exit("所有段的字幕 rebase 后为空——检查剪切稿时间戳是否与素材匹配")
 
@@ -358,7 +379,8 @@ def main():
                 return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
             lines = []
             for i, (a, b, txt) in enumerate(entries, 1):
-                lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{txt}\n")
+                # 显示层断行：≤16 显示宽度/行（import_srt 的多行 content 原样进剪映）
+                lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt)}\n")
             Path(path).write_text("\n".join(lines), encoding="utf-8")
 
         write_srt(all_sub, Path(td) / "sub.srt")

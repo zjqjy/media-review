@@ -117,12 +117,45 @@ def find_cuts_json(video: Path, srt: Path):
     return None
 
 
-def rebase_srt(entries, spans, path):
+def disp_len(s):
+    """显示宽度：汉字 1、ASCII 半角 0.5（对齐剪映的字宽度量）。"""
+    return sum(0.5 if c.isascii() else 1 for c in s)
+
+
+def wrap_zh(text, width=16):
+    """显示层断行：≤width 显示宽度一行，ASCII 词不拆散。
+
+    只影响字幕渲染（一条字幕内部换行），不拆条目、不动时间戳——音画同步不受影响
+    （2026-09-20 用户反馈：60 字无标点长句一屏横贯全屏，根因是标点模型没插逗号+
+    显示层不断行；显示层修最稳）。已有的换行/空白先归一成空格再重排。
+    """
+    tokens = re.findall(r"[A-Za-z0-9]+|\s+|[^\sA-Za-z0-9]+", text)
+    lines, cur, w = [], [], 0.0
+    for tok in tokens:
+        tw = len(tok) * (0.5 if tok.isascii() else 1)
+        if cur and w + tw > width:
+            while cur and not cur[-1].strip():
+                cur.pop()  # 行尾不留空白
+            lines.append("".join(cur))
+            cur, w = [], 0.0
+        cur.append(tok)
+        w += tw
+    if cur:
+        lines.append("".join(cur))
+    return "\n".join(lines)
+
+
+def rebase_srt(entries, spans, path, wrap_width=None):
     """源时间轴条目 → 成片时间轴 srt（按 spans 平移，与成片对齐）。
 
     jy_draft 与 srt_cut 共用；spans 元素可带速度 (s,e,speed)。
-    精确匹配失败（句首落在被挖的洞里）→ 取最近区间端点（距离超 1s 丢弃并计数）。
+    wrap_width：给定时按显示宽度断行（竖版可读），条目数不变。
+    精确匹配失败（句首落在被挖的洞里）→ 钳到最近区间端点；距离上限 1.5s——
+    ASR 条目结束时间戳普遍晚于实际语音（实测 02 段 #5 尾滞 0.8s，静音细剪裁掉
+    尾部后字幕被整条丢弃，2026-09-20），1.0s 容不得这个滞后。超限才丢弃并计数。
     """
+    CLAMP = 1.5
+
     def target_of(src_start):
         acc = 0.0
         for sp in spans:
@@ -131,7 +164,7 @@ def rebase_srt(entries, spans, path):
             if s - 0.001 <= src_start <= e + 0.001:
                 return acc + (src_start - s) / speed
             acc += (e - s) / speed
-        best, best_d = None, 1.0
+        best, best_d = None, CLAMP
         acc = 0.0
         for sp in spans:
             s, e = sp[0], sp[1]
@@ -167,7 +200,8 @@ def rebase_srt(entries, spans, path):
                 continue
             a, b = a2, b2
         n += 1
-        lines.append(f"{n}\n{fmt_ts(a)} --> {fmt_ts(b)}\n{txt}\n")
+        out_txt = wrap_zh(txt, wrap_width) if wrap_width else txt
+        lines.append(f"{n}\n{fmt_ts(a)} --> {fmt_ts(b)}\n{out_txt}\n")
     if dropped:
         print(f"[srt_cut] 提示：{dropped} 条字幕完全落在挖洞区被跳过")
     Path(path).write_text("\n".join(lines), encoding="utf-8")
@@ -199,8 +233,8 @@ def process_one(video: Path, srt_path: Path, args):
         else video.with_name(f"{video.stem}_粗剪{video.suffix}")
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    # 字幕 rebase 到成片时间轴，与 mp4 同名同目录
-    n_sub = rebase_srt(entries, spans, out.with_suffix(".srt"))
+    # 字幕 rebase 到成片时间轴，与 mp4 同名同目录；断行成竖版可读的多行条目
+    n_sub = rebase_srt(entries, spans, out.with_suffix(".srt"), wrap_width=16)
 
     kept = sum(e - s for s, e in spans)
     conds = "+".join(f"between(t,{s:.2f},{e:.2f})" for s, e in spans)

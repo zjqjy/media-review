@@ -54,6 +54,11 @@ def _token_spans(text):
     return spans
 
 
+def _disp_len(s):
+    """显示宽度：汉字 1、ASCII 半角 0.5（与 srt_cut.wrap_zh 同一度量）。"""
+    return sum(0.5 if c.isascii() else 1 for c in s)
+
+
 def _merge_runs(text, spans, seps):
     """把被 seps 中字符打断的英数 run 合回一个 span（there's → there + 's 合并）。
 
@@ -72,6 +77,25 @@ def _merge_runs(text, spans, seps):
                 continue
         out.append((a, b))
     return out
+
+
+def _split_long(text, cur, max_chars=25, min_gap_ms=200):
+    """超长条二次切分：分句后仍 >max_chars 显示宽度的，在词级间隙找自然停顿
+    （≥min_gap_ms）对半递归拆——标点模型没插逗号的 60 字长句一屏字幕，
+    转录端兜底（2026-09-20）。连读无停顿的不硬拆，留给显示层断行+标注轨。
+
+    cur: [(ci, cj, [t_start, t_end])]；返回 chunk 列表（同一批 token 的切分）。
+    """
+    if len(cur) <= 1 or _disp_len(text[cur[0][0]:cur[-1][1]]) <= max_chars:
+        return [cur]
+    best_gap, best_i = 0, None
+    for i in range(len(cur) - 1):
+        g = cur[i + 1][2][0] - cur[i][2][1]
+        if g > best_gap:
+            best_gap, best_i = g, i
+    if best_gap < min_gap_ms:
+        return [cur]  # 一口气说完，没有可下刀的停顿
+    return _split_long(text, cur[:best_i + 1]) + _split_long(text, cur[best_i + 1:])
 
 
 def build_entries(text, ts, fillers=()):
@@ -160,9 +184,11 @@ def build_entries(text, ts, fillers=()):
                     cur = cur[n_tok:]
                     changed = True
                     break
-        word = text[cur[0][0]:cur[-1][1]]
-        word = re.sub(r"^[，,．.。;；\s]+", "", word).strip()
-        entries.append((cur[0][2][0], cur[-1][2][1], word))
+        # 分句闭合：条目发射（超长条按词级停顿二次切分，一条仍对一段音频，只是更细）
+        for chunk in _split_long(text, cur):
+            word = text[chunk[0][0]:chunk[-1][1]]
+            word = re.sub(r"^[，,．.。;；\s]+", "", word).strip()
+            entries.append((chunk[0][2][0], chunk[-1][2][1], word))
         cur = []
     return entries, cuts
 
