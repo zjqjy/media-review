@@ -302,6 +302,9 @@ def main():
                     help="解说段播放速度。粗剪保持 1.0；加速属精剪域，测好后作为精剪步骤用")
     ap.add_argument("--gap-speed", type=float, default=1.0,
                     help="无字幕区间播放速度。粗剪保持 1.0（2026-09-19 用户决策：加速不属粗剪）")
+    ap.add_argument("--deliver-dir", default=None,
+                    help="交付目录：自动做交付两件套——①剪切稿以 <名>_剪法.srt 复制到各素材"
+                         "旁（原始目录）②草稿 json 快照到 <交付目录>/剪映草稿备份_<name>/")
     args = ap.parse_args()
 
     if not args.force:
@@ -429,6 +432,24 @@ def main():
 
     # 登记进 root_meta_info.json 索引——不登记草稿在剪映列表里隐形
     register_in_root_meta(folder, name)
+
+    # 交付两件套（2026-09-19 规矩）：①剪法清单回原始目录 ②草稿快照进交付目录
+    if args.deliver_dir:
+        deliver = Path(args.deliver_dir)
+        deliver.mkdir(parents=True, exist_ok=True)
+        draft_dir = folder / name
+        snap = deliver / f"剪映草稿备份_{name}"
+        snap.mkdir(exist_ok=True)
+        for f in ("draft_content.json", "draft_meta_info.json"):
+            if (draft_dir / f).exists():
+                (snap / f).write_bytes((draft_dir / f).read_bytes())
+        n_map = 0
+        for video, cut_srt in segs:
+            src = Path(cut_srt)
+            dst = video.parent / f"{video.stem}_剪法.srt"
+            (dst).write_bytes(src.read_bytes())
+            n_map += 1
+        print(f"[jy_draft] 交付两件套：草稿快照 → {snap}；剪法清单 {n_map} 份 → 各素材目录")
 
     # 持久化本次草稿根：下次不用再传 --draft-folder
     STATE_FILE.write_text(str(folder), encoding="utf-8")
