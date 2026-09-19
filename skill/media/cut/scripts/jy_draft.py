@@ -92,22 +92,26 @@ def rebase_srt(entries, spans, path):
     """
     def target_of(src_start):
         acc = 0.0
-        for s, e in spans:
+        for sp in spans:
+            s, e = sp[0], sp[1]
+            speed = sp[2] if len(sp) > 2 else 1.0
             if s - 0.001 <= src_start <= e + 0.001:
-                return acc + (src_start - s)
-            acc += e - s
+                return acc + (src_start - s) / speed
+            acc += (e - s) / speed
         best, best_d = None, 1.0
         acc = 0.0
-        for s, e in spans:
+        for sp in spans:
+            s, e = sp[0], sp[1]
+            speed = sp[2] if len(sp) > 2 else 1.0
             if s <= src_start <= e:
                 d = 0.0
-                pos = acc + (src_start - s)
+                pos = acc + (src_start - s) / speed
             else:
                 d = min(abs(src_start - s), abs(src_start - e))
-                pos = acc + min(max(src_start - s, 0), e - s)
+                pos = acc + min(max(src_start - s, 0), e - s) / speed
             if d < best_d:
                 best_d, best = d, pos
-            acc += e - s
+            acc += (e - s) / speed
         return best
 
     def fmt(t):
@@ -188,6 +192,16 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
         spans = subtract_intervals(spans, silences, keep=0.2, min_cut=0.5)
         print(f"[jy_draft] {video.name}: 静音细剪 {n_coarse} → {len(spans)} 段")
+
+    # 分段变速：有字幕覆盖的区间=解说段(narr_speed)，纯操作/等待区间=gap_speed
+    # （对齐人工成片的加速节奏；剪映里每段速度仍可手调）
+    spans_sp = []
+    for s, e in spans:
+        span_len = e - s
+        covered = any(max(s, es) < min(e, ee) and (min(e, ee) - max(s, es)) >= span_len * 0.5
+                      for es, ee, _ in entries)
+        spans_sp.append((s, e, args.narr_speed if covered else args.gap_speed))
+    spans = spans_sp
 
     # 字幕/标注 rebase 到本段成片时间轴（调用方再加段偏移）
     with tempfile.TemporaryDirectory() as td:
@@ -284,13 +298,17 @@ def main():
     ap.add_argument("--no-cuts", action="store_true", help="不做词级跳剪")
     ap.add_argument("--force", action="store_true",
                     help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）")
+    ap.add_argument("--narr-speed", type=float, default=1.0,
+                    help="解说段（有字幕覆盖）播放速度，对齐人工加速节奏")
+    ap.add_argument("--gap-speed", type=float, default=1.0,
+                    help="无字幕区间（纯操作/等待）播放速度")
     args = ap.parse_args()
 
     if not args.force:
         import subprocess
         tl = subprocess.run(["tasklist", "/FI", "IMAGENAME eq JianyingPro.exe"],
                             capture_output=True, text=True)
-        if "JianyingPro.exe" in tl.stdout:
+        if "JianyingPro.exe" in (tl.stdout or ""):
             sys.exit("检测到剪映正在运行——运行中的剪映退出时可能把新生成的草稿扫进它的回收站\n"
                      "（实测踩坑 2026-09-19）。请先关闭剪映再重跑本命令；确要继续加 --force")
 
@@ -349,13 +367,16 @@ def main():
         material, spans, sub_entries, anno_entries, info = process_segment(video, cut_srt, args)
         print(f"[jy_draft] {video.name}: 主轨 {len(spans)} 段，字幕 {len(sub_entries)}，标注 {len(anno_entries)}")
         seg_start_us = t_us
-        for s, e in spans:
+        for s, e, sp in spans:
+            src_dur = round((e - s) * 1e6)
+            tgt_dur = max(1, round(src_dur / sp))
             seg = VideoSegment(
                 material,
-                target_timerange=Timerange(t_us, int((e - s) * 1e6)),
-                source_timerange=Timerange(int(s * 1e6), int((e - s) * 1e6)))
+                target_timerange=Timerange(t_us, tgt_dur),
+                source_timerange=Timerange(round(s * 1e6), src_dur),
+                speed=sp)
             script.add_segment(seg, track="主轨")
-            t_us += int((e - s) * 1e6)
+            t_us += tgt_dur
         seg_off = seg_start_us / 1e6
         all_sub += [(a + seg_off, b + seg_off, txt) for a, b, txt in sub_entries]
         all_anno += [(a + seg_off, b + seg_off, txt) for a, b, txt in anno_entries]
