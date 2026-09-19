@@ -17,6 +17,8 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 - **依赖核验一律走 `python scripts/env_check.py`，不要手工逐个试**（2026-09-20：手工验依赖实测烧 ~6 min/期）。首跑全查几秒（用 importlib.metadata 查版本，**不 import torch/funasr**），结果缓存到技能安装目录 `_env_verified.json`；之后每期秒读缓存跳过。装了新包/换环境后 `--force` 刷新；缓存 30 天自动过期重查
 - **转录**：自研 `scripts/asr_funasr.py`（FunASR Paraformer + VAD + 标点，中文 CER ~10%，Whisper 的一半）。依赖 funasr（torch 级，安装需用户点头）；模型走 ModelScope 国内 CDN——**下载模型关 VPN 直连，pip 装包才开 VPN**，首跑 ~1.2G。备选：AutoCut（Whisper，英文素材或要验证它的工作流再装）
 - **初选执行器**：`scripts/select.py`（决定.json 进 → 剪切稿+日志出，锚字核验内建）+ `scripts/asr_fixes.json`（跨期沉淀的 ASR 错拼修错表，自动套用）
+- **一键编排**：`scripts/run_cut.py`（--init 机器段一条命令 / --finish 收尾一条命令）
+- **并行初选**：`scripts/初选代理模板.md`（发子代理时复制替换占位符，见流程第②层 b）
 - **ffmpeg** 自动发现：PATH → `imageio_ffmpeg` 自带二进制。都没有 → `winget install ffmpeg` 或 `pip install imageio-ffmpeg`
 - **交接脚本**：`scripts/jy_draft.py`（剪映草稿直出）+ `scripts/srt_cut.py`（重编码出粗片，fallback）；均零 ffmpeg 外依赖，复用同一套区间数学
 - 逐字稿归档与规划参考的路径走 review 的同一份 `_config_local.json` 配置（`transcripts`/`planning_ref` 键，见仓根 `config.example.json`；不存在的目录首次使用时问用户）；若 cwd 就是知识库根，相对路径直接用
@@ -55,15 +57,16 @@ python scripts/asr_funasr.py 原素材1.mp4 原素材2.mp4 ... --hotword "ESP32 
 ### 3. 第②层 b：AI 初选（select.py 标准执行器 + AI 判断）
 
 > **多代理初选（2026-09-20 定，短视频场景的命门）**：素材就位后管线计算只要 ~2 min，
-> 40+ min 大头是 AI 会话轮次和逐段串行读稿。规矩改为：
-> 1. **机器段一条命令**：`python scripts/run_cut.py --init 素材目录...`（建工作区+单批转录
->    一次模型加载+逐段 scan 落 `<段>.scan.txt`），跑完打印初选交接单
-> 2. **每段（或一组小段）发一个并行子代理**：只发四样东西——转录稿路径、scan.txt 路径、
->    规则摘要（下方 2-4 条+锚字自验要求）、输出路径 `_工具/初选决定_<段名>.json`。
->    大段（>15 min 素材）独占一个代理，小段合并给一个；主线程不等单段，全部并行
-> 3. 子代理自验锚字后才落盘；主线程 `python scripts/run_cut.py --finish 待粗剪目录...`
->    合并碎片→dry→apply→草稿→organize 一条命令收尾
-> 4. 短素材（<5 min）整期走完的目标线：**10 分钟内**；全程漏斗数据带时间戳记录
+> 40+ min 大头是 AI 会话轮次和逐段串行读稿。标准流程三步（实测两期 87min→29:33，见下）：
+> 1. **机器段一条命令**：`python scripts/run_cut.py --init 素材目录...`——建工作区+单批转录
+>    （一次模型加载，9 段实测 2:11）+逐段 scan 落 `<段>.scan.txt`，打印初选交接单
+> 2. **并行子代理初选**：打开 `scripts/初选代理模板.md`，复制替换 {占位符} 后每大段
+>    （>15min 素材）发一个子代理、小段合并一组，全部**同时**发出；代理自验锚字后落
+>    `_工具/初选决定_<段名>.json` 碎片。实测墙钟=最大段（186 条 18.5min，是全流程关键路径）
+> 3. **一条命令收尾**：碎片齐一个跑一个也可——`python scripts/run_cut.py --finish 待粗剪目录...`
+>    合并碎片→dry→apply→草稿→organize（短素材 6s，长素材 4:23）
+> 时间预算：机器段 ≤3min、并行初选 =最大段 15-20min、收尾 ≤5min。短素材（<5min）
+> 整期目标线 **10 分钟内**。全程漏斗数据带时间戳记录
 
 1. 要**内容大纲**：读 `planning_ref` 配置文件（下期规划参考）；没有就用户口述三句——给谁看 / 解决什么问题 / 关键步骤
 2. **先跑 `python scripts/select.py --scan <各段>.srt`**：机器预列纯语气词候选、疑似重复组（比转录端重录检测宽：窗口±8条/间隔≤120s）、口头禅统计。AI 只精读扫描出来的候选区+快扫全文，不再逐句硬读大稿
