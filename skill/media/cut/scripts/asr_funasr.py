@@ -180,20 +180,27 @@ def fmt_ts(ms) -> str:
 
 def main():
     ap = argparse.ArgumentParser(description="FunASR 转录出 SRT（Paraformer + VAD + 标点）")
-    ap.add_argument("media")
-    ap.add_argument("-o", "--out", default=None)
+    ap.add_argument("media", nargs="+",
+                    help="一个或多个视频/音频（多文件时模型只加载一次，省 5-6 分钟）")
+    ap.add_argument("-o", "--out", default=None,
+                    help="输出 srt 路径（仅单文件时有效；多文件写在各自旁边）")
     ap.add_argument("--hotword", default="", help="热词，空格分隔（技术词塞这里准确率立涨）")
     ap.add_argument("--strip-filler", default="然后",
                     help="句首口头禅词级剥离（逗号分隔多个），记入 .cuts.json 供剪切时抠掉；空串=关闭")
     args = ap.parse_args()
 
-    media = Path(args.media)
-    out = Path(args.out) if args.out else media.with_name(f"{media.stem}.srt")
-
     from funasr import AutoModel  # torch 级重依赖，参数解析后再 import
     model = AutoModel(model="paraformer-zh", vad_model="fsmn-vad",
                       punc_model="ct-punc-c", disable_update=True)
 
+    for media_path in args.media:
+        media = Path(media_path)
+        out = (Path(args.out) if args.out else media.with_name(f"{media.stem}.srt")) \
+            if len(args.media) == 1 else media.with_name(f"{media.stem}.srt")
+        transcribe_one(model, media, out, args)
+
+
+def transcribe_one(model, media: Path, out: Path, args):
     with tempfile.TemporaryDirectory() as td:
         wav = extract_wav(media, td)
         kw = {"input": str(wav), "batch_size_s": 300}

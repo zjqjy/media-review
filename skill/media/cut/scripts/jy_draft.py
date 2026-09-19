@@ -329,9 +329,10 @@ def main():
         segs.append((Path(args.video), Path(args.cut_srt)))
     # 顺序规矩：严格按命令行传入顺序拼轨（素材文件建议带序号命名，由调用方负责顺序）
     try:
-        from pyJianYingDraft import (ClipSettings, DraftFolder, TextStyle,
-                                     Timerange, TrackSpec, TrackType,
-                                     VideoMaterial, VideoSegment)
+        from pyJianYingDraft import (ClipSettings, DraftFolder, TextBorder,
+                                     TextSegment, TextStyle, Timerange,
+                                     TrackSpec, TrackType, VideoMaterial,
+                                     VideoSegment)
         globals()["VideoMaterial"] = VideoMaterial
     except ImportError:
         sys.exit("缺依赖：pip install pyJianYingDraft")
@@ -414,7 +415,14 @@ def main():
             Path(path).write_text("\n".join(lines), encoding="utf-8")
 
         write_srt(all_sub, Path(td) / "sub.srt")
-        script.import_srt(str(Path(td) / "sub.srt"), "字幕")
+        # 字幕默认黑描边——素材大量浅色背景（录屏/白板），纯白字看不清
+        sub_ref = TextSegment("样式参考", Timerange(0, 1),
+                              style=TextStyle(size=5, color=(1.0, 1.0, 1.0),
+                                              align=1, bold=True),
+                              border=TextBorder(color=(0.0, 0.0, 0.0), width=40))
+        script.import_srt(str(Path(td) / "sub.srt"), "字幕",
+                          style_reference=sub_ref,
+                          clip_settings=ClipSettings(transform_y=-0.8))
         if all_anno:
             write_srt(all_anno, Path(td) / "anno.srt")
             script.import_srt(str(Path(td) / "anno.srt"), "标注",
