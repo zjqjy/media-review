@@ -149,22 +149,73 @@ def cmd_finish(args):
     print("[run_cut] 全部工作区交付完毕。粗片文件可选：srt_cut.py --seq ... 后台跑")
 
 
+def cmd_qa(args):
+    """成片复核闭环：音频快剪 → 重转录 → 口癖/重复残留审计（2026-09-20 用户要求：
+    剪辑结果出来后转录复核一遍）。产物在 待粗剪/_QA/，报告打 stdout。"""
+    t0 = time.time()
+    for ws in args.workspaces:
+        ws = Path(ws)
+        raw = ws / "1_原始"
+        tri = ws / "3_转录初选"
+        qa_dir = ws / "_QA"
+        qa_dir.mkdir(exist_ok=True)
+        names = [p.stem for p in sorted(raw.glob("*.mp4"))]
+        if args.order:
+            names = [n.strip() for n in args.order.split(",")]
+        seq = [f"{raw / n}.mp4={tri / n}_剪切稿.srt" for n in names
+               if (tri / f"{n}_剪切稿.srt").exists()]
+        if not seq:
+            sys.exit(f"run_cut: {tri} 里没有剪切稿——先跑 --finish")
+        sh([sys.executable, HERE / "srt_cut.py", "--seq", *seq,
+            "--out-dir", qa_dir, "--audio-only"])
+        audio = sorted(qa_dir.glob("*.m4a"))
+        hot = ["--hotword", args.hotword] if args.hotword else []
+        sh([sys.executable, HERE / "asr_funasr.py", *audio, *hot])
+        print(f"\n===== 成片复核报告 · {ws.parent.name}（{time.time()-t0:.0f}s）=====")
+        for a in audio:
+            srt = a.with_suffix(".srt")
+            if not srt.exists():
+                continue
+            out = sh([sys.executable, HERE / "select.py", "--scan", srt])
+            txt = Path(srt).read_text(encoding="utf-8-sig")
+            import re as _re
+            from collections import Counter
+            body = "\n".join(l for l in txt.splitlines()
+                             if l and "-->" not in l and not l.strip().isdigit())
+            fills = Counter(m.group() for m in
+                            _re.finditer(r"然后|呃{1,}|嗯{2,}|哎|就是说", body))
+            n_sent = len([b for b in txt.split("\n\n") if b.strip()])
+            print(f"\n[{a.stem}] 成片 {n_sent} 条")
+            print("  口癖残留:", (dict(fills) if fills else "无"))
+            for m in _re.finditer(r".{8}(?:然后|呃|嗯{2,}).{8}", body):
+                print(f"    …{m.group()}…")
+            dup_lines = [l for l in out.splitlines() if "组（保最后" in l]
+            print("  疑似重复组:", f"{len(dup_lines)} 组" if dup_lines else "无")
+            for l in dup_lines:
+                print("   ", l.strip())
+
+
 def main():
     ap = argparse.ArgumentParser(description="cut 管线一键编排（机器段一条命令，AI 只管初选）")
     ap.add_argument("--init", nargs="+", dest="dirs", metavar="素材目录",
                     help="建工作区+单批转录+scan（多期可一起传，共享一次模型加载）")
     ap.add_argument("--finish", nargs="+", dest="workspaces", metavar="待粗剪",
                     help="决定就位后：合并决定→dry→apply→草稿→归位")
+    ap.add_argument("--qa", nargs="+", dest="qa_ws", metavar="待粗剪",
+                    help="成片复核：音频快剪→重转录→口癖/重复残留审计")
     ap.add_argument("--hotword", default="ESP32 ESP32-S3 ESP-IDF Claude Code VS Code "
                     "LCD 触摸屏 WS2812B Ctrl+Shift+P USB-JTAG COM口 GitHub IDF 乐鑫 "
                     "开发板 引脚 阿程 桌面代码搭子 清华源 串口烧录")
     ap.add_argument("--order", default=None, help="草稿拼轨顺序，逗号分段名（--finish 用）")
     ap.add_argument("--draft-name", default=None, help="草稿名（--finish 单工作区时可用）")
     args = ap.parse_args()
-    if bool(args.dirs) == bool(args.workspaces):
-        ap.error("--init / --finish 二选一")
+    if bool(args.dirs) == bool(args.workspaces) == bool(args.qa_ws):
+        ap.error("--init / --finish / --qa 三选一")
     if args.dirs:
         cmd_init(args)
+    elif args.qa_ws:
+        args.workspaces = args.qa_ws
+        cmd_qa(args)
     else:
         cmd_finish(args)
 

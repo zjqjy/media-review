@@ -231,6 +231,8 @@ def process_one(video: Path, srt_path: Path, args):
 
     out = (args.out_dir / f"{video.stem}_粗剪{video.suffix}") if args.out_dir \
         else video.with_name(f"{video.stem}_粗剪{video.suffix}")
+    if args.audio_only:
+        out = out.with_suffix(".m4a")
     out.parent.mkdir(parents=True, exist_ok=True)
 
     # 字幕 rebase 到成片时间轴，与 mp4 同名同目录；断行成竖版可读的多行条目
@@ -238,8 +240,16 @@ def process_one(video: Path, srt_path: Path, args):
 
     kept = sum(e - s for s, e in spans)
     conds = "+".join(f"between(t,{s:.2f},{e:.2f})" for s, e in spans)
-    vf = f"select='{conds}',setpts=N/FRAME_RATE/TB"
     af = f"aselect='{conds}',asetpts=N/SR/TB"
+    if args.audio_only:
+        # 纯音频快速出片——QA 复核（重转录听成片）用，几十秒级
+        print(f"[srt_cut] {video.name} 音频快剪 {len(entries)} 句 → {len(spans)} 段，"
+              f"共 {fmt(kept)} / 原始 {fmt(dur)}（砍 {1 - kept / dur:.0%}）...")
+        run([FFMPEG, "-y", "-i", str(video), "-vn", "-af", af,
+             "-c:a", "aac", "-b:a", "160k", str(out)])
+        print(f"[srt_cut] 完成 → {out}")
+        return
+    vf = f"select='{conds}',setpts=N/FRAME_RATE/TB"
 
     print(f"[srt_cut] {video.name} 保留 {len(entries)} 句 → {len(spans)} 段，共 {fmt(kept)}"
           f" / 原始 {fmt(dur)}（砍 {1 - kept / dur:.0%}）——处理中（重编码，挂机等）...")
@@ -263,6 +273,8 @@ def main():
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭")
     ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
+    ap.add_argument("--audio-only", action="store_true",
+                    help="只出音频（.m4a，几十秒级）——QA 复核/快速听稿用，不编码视频")
     args = ap.parse_args()
     args.out_dir = Path(args.out_dir) if args.out_dir else None
 

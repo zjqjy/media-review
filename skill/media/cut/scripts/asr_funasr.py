@@ -79,6 +79,32 @@ def _merge_runs(text, spans, seps):
     return out
 
 
+def _solo_filler_holes(text, cur, solo=("呃", "嗯"), gap_ms=180):
+    """孤立填充声挖洞（2026-09-20 QA 迭代：成片残留 11 处"呃"）。
+
+    token 是呃/嗯（或其叠跑）且两侧间隙 ≥gap_ms（条目边界一侧视为满足）→ 挖洞剥字。
+    连读（两侧贴字）不动——没有停顿掩护的硬抠会切字。
+    返回 (holes, 剩余 token 列表)。
+    """
+    holes, keep = [], []
+    n = len(cur)
+    k = 0
+    while k < n:
+        ci, cj, t = cur[k]
+        tok = text[ci:cj]
+        if tok in solo or re.fullmatch(r"[呃嗯]{2,}", tok):
+            left = (t[0] - cur[k - 1][2][1]) if k > 0 else 10 ** 9
+            right = (cur[k + 1][2][0] - t[1]) if k + 1 < n else 10 ** 9
+            edge = k == 0 or k + 1 == n
+            if (left >= gap_ms and right >= gap_ms) or (edge and (left + right) >= gap_ms * 2):
+                holes.append({"start": t[0], "end": t[1], "word": f"填充声·{tok}"})
+                k += 1
+                continue
+        keep.append(cur[k])
+        k += 1
+    return holes, keep
+
+
 def _split_long(text, cur, max_chars=25, min_gap_ms=200):
     """超长条二次切分：分句后仍 >max_chars 显示宽度的，在词级间隙找自然停顿
     （≥min_gap_ms）对半递归拆——标点模型没插逗号的 60 字长句一屏字幕，
@@ -171,6 +197,9 @@ def build_entries(text, ts, fillers=()):
                         break
                 grp_len += 1
             k2 += 1
+        # 孤立"呃/嗯"先挖（两侧有停顿才下刀）——句首的呃不清掉会挡住口头禅匹配
+        solo_holes, cur = _solo_filler_holes(text, cur)
+        cuts.extend(solo_holes)
         # 分句首口头禅剥成洞（词级跳剪用），可连环剥（"然后然后""然后呃"）
         changed = True
         while changed:
@@ -185,6 +214,8 @@ def build_entries(text, ts, fillers=()):
                     changed = True
                     break
         # 分句闭合：条目发射（超长条按词级停顿二次切分，一条仍对一段音频，只是更细）
+        if not cur:
+            continue  # 整条只剩孤立填充声：洞已记，不产条目
         for chunk in _split_long(text, cur):
             word = text[chunk[0][0]:chunk[-1][1]]
             word = re.sub(r"^[，,．.。;；\s]+", "", word).strip()

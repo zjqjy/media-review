@@ -14,6 +14,7 @@
 """
 
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -46,9 +47,24 @@ def run(cmd):
     return p.stderr  # silencedetect 的输出在 stderr
 
 
-def detect_silences(video, db, min_s):
-    """返回 [(start, end)] 静音段列表（秒）。"""
-    out = run([FFMPEG, "-i", video, "-af",
+def detect_silences(video, db, min_s, use_cache=True):
+    """返回 [(start, end)] 静音段列表（秒）。
+
+    结果按 文件+参数+视频mtime 缓存到 <stem>.silence.json——jy_draft/srt_cut/
+    qa_backfill 对同一素材反复检测（实测 40min 文件 30-60s/次），缓存后全场复用。
+    """
+    video = Path(video)
+    cache = video.with_name(f"{video.stem}.silence.json")
+    if use_cache and cache.exists():
+        try:
+            data = json.loads(cache.read_text(encoding="utf-8"))
+            if (data.get("db") == db and data.get("min") == min_s
+                    and data.get("mtime") == video.stat().st_mtime
+                    and isinstance(data.get("cut"), list)):
+                return [(s, e) for s, e in data["cut"]], data.get("dur", 0.0)
+        except Exception:
+            pass
+    out = run([FFMPEG, "-i", str(video), "-af",
                f"silencedetect=noise={db}dB:d={min_s}", "-f", "null", "-"])
     starts = [float(m) for m in re.findall(r"silence_start:\s*([\d.]+)", out)]
     ends = [float(m) for m in re.findall(r"silence_end:\s*([\d.]+)", out)]
@@ -56,7 +72,16 @@ def detect_silences(video, db, min_s):
     dur = duration_of(video)
     if len(ends) < len(starts):
         ends.append(dur)
-    return list(zip(starts, ends)), dur
+    result = list(zip(starts, ends))
+    if use_cache:
+        try:
+            cache.write_text(json.dumps(
+                {"db": db, "min": min_s, "mtime": video.stat().st_mtime,
+                 "dur": dur, "cut": [[s, e] for s, e in result]},
+                ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+    return result, dur
 
 
 def duration_of(video):

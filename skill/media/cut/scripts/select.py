@@ -161,14 +161,20 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
             del_anchor[int(k)] = v
         for grp in plan.get("repeat") or []:
             dels = [int(i) for i in grp.get("del", [])]
+            if not dels:
+                continue  # 该组删除项已全部随词级洞/重转录撤销，无可删
             del_set.update(dels)
             av = grp.get("anchors") or {}
-            if isinstance(av, dict):
+            if not av:
+                pass  # 无锚=可选，不报错
+            elif isinstance(av, dict):
                 for k, v in av.items():
                     del_anchor[int(k)] = v
-            else:
+            elif isinstance(av, list):
                 # 代理两种约定都收：与 del 平行的列表，或 [首锚, 尾锚]
-                if len(av) == len(dels):
+                if not av:
+                    pass  # 空列表=无锚，可选
+                elif len(av) == len(dels):
                     for i, v in zip(dels, av):
                         del_anchor[i] = v
                 elif len(av) >= 1 and dels:
