@@ -41,6 +41,7 @@ description: media 子技能：剪辑提效（发前粗剪）。由 media 门面
 ## 技术事实（避免重新踩坑）
 
 - **零重编码**：全流程单一原始素材时间轴，转录直吃原素材音频（VAD 跳静音），jy_draft 引用原素材+自带静音细剪。`silence_trim.py` 已退役为可选预览
+- **静音细剪边缘 keep=0**（2026-09-20 修）：静音边界是 ffmpeg 实测能量，keep 回退会把每段尾部多咬 0.2s、削掉末字尾音（实测 03 段「获取」）；ASR 词级洞的 keep/pre_roll 不受影响
 - **静音检测缓存**：detect_silences 按 文件+参数+mtime 缓存 `.silence.json`，jy_draft/qa/backfill 全场复用
 - **转录**：FunASR Paraformer CPU；模型走 ModelScope 国内 CDN——**下模型关 VPN，pip 装包开 VPN**，首跑 ~1.2G
 - **词级对齐脆弱**：转录警告"token ≠ 时间戳，按比例兜底"= 词级洞全丢（时间戳失真不可用），必须修完重跑（脚本自动试撇号/连字符合并）

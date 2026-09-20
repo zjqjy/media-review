@@ -226,7 +226,7 @@ def process_one(video: Path, srt_path: Path, args):
 
     if args.min_inner > 0:
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
-        spans = subtract_intervals(spans, silences, keep=0.2, min_cut=0.5)
+        spans = subtract_intervals(spans, silences, keep=0, min_cut=0.5) # 静音边界是 ffmpeg 实测能量，无需回退——keep 回退会把每段尾部多咬 0.2s（实测 03 段末字「取」尾音被削，2026-09-20）
         print(f"[srt_cut] {video.name} 静音细剪 → {len(spans)} 段")
 
     out = (args.out_dir / f"{video.stem}_粗剪{video.suffix}") if args.out_dir \
