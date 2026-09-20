@@ -12,7 +12,8 @@
   python run_cut.py --finish 工作区(待粗剪)...
       收 _工具/初选决定*.json（碎片自动合并）→ select --dry 核验 → --apply
       → jy_draft --seq 出草稿（默认按文件名排序，非序号命名用 --order 强制）
-      → organize 归位。每步失败即停，锚字核验不过不会落盘
+      → organize 归位 → srt_cut 后台出 4_粗剪成片 实体粗片存档（重编码挂机，
+      不阻塞返回）。每步失败即停，锚字核验不过不会落盘
 
 AI 侧分工见 SKILL.md「多代理初选」：每段一个子代理并行读稿写决定，主线程只合并。
 """
@@ -147,8 +148,21 @@ def cmd_finish(args):
         sh([sys.executable, HERE / "jy_draft.py", "--seq", *seq,
             "--name", args.draft_name or f"{ws.parent.name}_粗剪"])
         sh([sys.executable, HERE / "organize.py", ws])
-        print(f"[run_cut] {ws} 完成（{time.time()-t0:.0f}s）")
-    print("[run_cut] 全部工作区交付完毕。粗片文件可选：srt_cut.py --seq ... 后台跑")
+        # 粗片存档（2026-09-20 用户要求：交付不能只有草稿——草稿里删掉的段
+        # 剪映不进回收站，改坏/误删没有实体粗片就找不回）。重编码挂机，
+        # 后台跑不阻塞 --finish；产物落 ws/4_粗剪成片/，附对齐字幕 srt
+        out_dir = ws / "4_粗剪成片"
+        out_dir.mkdir(exist_ok=True)
+        log = out_dir / "_srt_cut.log"
+        detached = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(
+            [str(sys.executable), str(HERE / "srt_cut.py"), "--seq", *seq,
+             "--out-dir", str(out_dir)],
+            stdout=open(log, "w", encoding="utf-8"), stderr=subprocess.STDOUT,
+            creationflags=detached, close_fds=True)
+        print(f"[run_cut] 粗片存档已在后台开跑（重编码挂机，日志 {log}）→ {out_dir}")
+        print(f"[run_cut] {ws} 完成（{time.time()-t0:.0f}s；粗片文件后台生成中，不用等）")
+    print("[run_cut] 全部工作区交付完毕。")
 
 
 def cmd_qa(args):

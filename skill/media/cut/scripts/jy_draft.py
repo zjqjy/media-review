@@ -286,6 +286,9 @@ def main():
     ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
     ap.add_argument("--cuts", default=None, help="口头禅洞 .cuts.json（单段模式）")
     ap.add_argument("--no-cuts", action="store_true", help="不做词级跳剪")
+    ap.add_argument("--no-sub", action="store_true",
+                    help="不出字幕轨/标注轨（纯视频草稿，精剪随便删不用伺候字幕）；"
+                         "字幕/标注落成 srt 存草稿目录旁，定稿后用 final_sub.py 或剪映导入")
     ap.add_argument("--force", action="store_true",
                     help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）；"
                          "同名草稿被剪映/人工改过时也允许原地覆盖（默认自动落 v2 不覆盖）")
@@ -411,46 +414,69 @@ def main():
         for t in missing:
             print(f"    丢: {t[:50]}")
 
-    if not all_sub:
+    if not all_sub and not args.no_sub:
         sys.exit("所有段的字幕 rebase 后为空——检查剪切稿时间戳是否与素材匹配")
 
-    with tempfile.TemporaryDirectory() as td:
-        def write_srt(entries, path):
-            def fmt(t):
+    if args.no_sub:
+        # 纯视频草稿：字幕层（字幕+标注）不进草稿——精剪删视频不会把字幕带歪/
+        # 误删（2026-09-20 用户痛点：字幕轨跟着视频一起被剪坏）。srt 落草稿旁，
+        # 定稿后 final_sub.py 重出或直接把这份导入剪映
+        with tempfile.TemporaryDirectory() as td:
+            def _fmt(t):
                 ms = int(round(t * 1000))
                 h, rem = divmod(ms, 3600000)
                 m, rem = divmod(rem, 60000)
                 s, ms2 = divmod(rem, 1000)
                 return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
-            lines = []
-            for i, (a, b, txt) in enumerate(entries, 1):
-                # 显示层断行：≤SUB_WRAP 显示宽度/行（import_srt 的多行 content 原样进剪映）
-                lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt, SUB_WRAP)}\n")
-            Path(path).write_text("\n".join(lines), encoding="utf-8")
+            def _dump(entries, path):
+                lines = [f"{i}\n{_fmt(a)} --> {_fmt(b)}\n{wrap_zh(txt, SUB_WRAP)}\n"
+                         for i, (a, b, txt) in enumerate(entries, 1)]
+                Path(path).write_text("\n".join(lines), encoding="utf-8")
+            sub_out = folder / f"{name}_字幕.srt"
+            _dump(all_sub, sub_out)
+            anno_out = None
+            if all_anno:
+                anno_out = folder / f"{name}_标注.srt"
+                _dump(all_anno, anno_out)
+    else:
+        sub_out = anno_out = None
+        with tempfile.TemporaryDirectory() as td:
+            def write_srt(entries, path):
+                def fmt(t):
+                    ms = int(round(t * 1000))
+                    h, rem = divmod(ms, 3600000)
+                    m, rem = divmod(rem, 60000)
+                    s, ms2 = divmod(rem, 1000)
+                    return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
+                lines = []
+                for i, (a, b, txt) in enumerate(entries, 1):
+                    # 显示层断行：≤SUB_WRAP 显示宽度/行（import_srt 的多行 content 原样进剪映）
+                    lines.append(f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt, SUB_WRAP)}\n")
+                Path(path).write_text("\n".join(lines), encoding="utf-8")
 
-        write_srt(all_sub, Path(td) / "sub.srt")
-        # 字幕可读性三件套：白字 + 黑描边 + 半透明黑底板——录屏常有纯白/浅色画面，
-        # 只靠描边（v2 实测反馈）在浅背景下仍看不清，底板才是保底
-        sub_ref = TextSegment("样式参考", Timerange(0, 1),
-                              style=TextStyle(size=SUB_SIZE, color=(1.0, 1.0, 1.0),
-                                              align=1, bold=True),
-                              border=TextBorder(color=(0.0, 0.0, 0.0), width=40),
-                              background=TextBackground(color="#000000", alpha=0.6,
-                                                        round_radius=0.1))
-        script.import_srt(str(Path(td) / "sub.srt"), "字幕",
-                          style_reference=sub_ref,
-                          clip_settings=ClipSettings(transform_y=-0.8))
-        if all_anno:
-            write_srt(all_anno, Path(td) / "anno.srt")
-            script.import_srt(str(Path(td) / "anno.srt"), "标注",
-                              text_style=TextStyle(size=5, color=RED, bold=True, align=1),
-                              clip_settings=ClipSettings(transform_y=0.8))
-        # 末行锚底（2026-09-20 反馈：单行字幕悬空"太靠上"、多行整块压内容）：
-        # 按每条实际行数微调文本框中心——末行恒贴 SUB_BOTTOM_Y，块向上生长不压中下部
-        for seg in script.tracks["字幕"].segments:
-            n_lines = seg.text.count("\n") + 1
-            seg.clip_settings.transform_y = (SUB_BOTTOM_Y
-                                             + (n_lines - 1) * SUB_LINE_UNIT)
+            write_srt(all_sub, Path(td) / "sub.srt")
+            # 字幕可读性三件套：白字 + 黑描边 + 半透明黑底板——录屏常有纯白/浅色画面，
+            # 只靠描边（v2 实测反馈）在浅背景下仍看不清，底板才是保底
+            sub_ref = TextSegment("样式参考", Timerange(0, 1),
+                                  style=TextStyle(size=SUB_SIZE, color=(1.0, 1.0, 1.0),
+                                                  align=1, bold=True),
+                                  border=TextBorder(color=(0.0, 0.0, 0.0), width=40),
+                                  background=TextBackground(color="#000000", alpha=0.6,
+                                                            round_radius=0.1))
+            script.import_srt(str(Path(td) / "sub.srt"), "字幕",
+                              style_reference=sub_ref,
+                              clip_settings=ClipSettings(transform_y=-0.8))
+            if all_anno:
+                write_srt(all_anno, Path(td) / "anno.srt")
+                script.import_srt(str(Path(td) / "anno.srt"), "标注",
+                                  text_style=TextStyle(size=5, color=RED, bold=True, align=1),
+                                  clip_settings=ClipSettings(transform_y=0.8))
+            # 末行锚底（2026-09-20 反馈：单行字幕悬空"太靠上"、多行整块压内容）：
+            # 按每条实际行数微调文本框中心——末行恒贴 SUB_BOTTOM_Y，块向上生长不压中下部
+            for seg in script.tracks["字幕"].segments:
+                n_lines = seg.text.count("\n") + 1
+                seg.clip_settings.transform_y = (SUB_BOTTOM_Y
+                                                 + (n_lines - 1) * SUB_LINE_UNIT)
     script.save()
 
     # pyJianYingDraft 模板 draft_id 固定，多草稿同 ID 会干扰剪映定位——随机化
@@ -500,7 +526,13 @@ def main():
     kept = t_us / 1e6
     print(f"[jy_draft] 草稿已生成：{folder / name}")
     print(f"  {len(segs)} 段素材按序拼接，主轨总时长 {int(kept // 60)}:{int(kept % 60):02d}")
-    print(f"  字幕轨 {len(all_sub)} 条；标注轨 {len(all_anno)} 条（红色置顶，导出前删掉该轨）")
+    if args.no_sub:
+        print(f"  纯视频草稿（无字幕/标注轨）——精剪随便删。粗剪字幕：{sub_out}")
+        if anno_out:
+            print(f"  人工标注：{anno_out}")
+        print("  定稿后出字幕：python final_sub.py 成片.mp4（或把上面的 srt 导入剪映）")
+    else:
+        print(f"  字幕轨 {len(all_sub)} 条；标注轨 {len(all_anno)} 条（红色置顶，导出前删掉该轨）")
     print("  打开剪映专业版，草稿列表里直接可见")
 
 
