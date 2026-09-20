@@ -18,7 +18,8 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE))
+CUT_SCRIPTS = HERE.parent.parent / "cut" / "scripts"  # 转录器与错拼表都在 cut
+sys.path.insert(0, str(CUT_SCRIPTS))
 from select import load_global_fixes  # noqa: E402
 from srt_cut import parse_srt as parse_srt_tuples  # noqa: E402
 
@@ -52,7 +53,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as td:
         raw = Path(td) / "raw.srt"
-        cmd = [sys.executable, HERE / "asr_funasr.py", str(video), "-o", str(raw)]
+        cmd = [sys.executable, CUT_SCRIPTS / "asr_funasr.py", str(video), "-o", str(raw)]
         if args.hotword:
             cmd += ["--hotword", args.hotword]
         r = subprocess.run(cmd, text=True, encoding="utf-8", errors="replace")
