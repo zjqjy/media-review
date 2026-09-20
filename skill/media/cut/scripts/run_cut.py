@@ -42,8 +42,10 @@ def init_dirs(material_dirs):
     layout = {}
     for d in material_dirs:
         d = Path(d)
-        mp4s = sorted(d.glob("*.mp4")) if d.name != "1_原始" else sorted(d.glob("*.mp4"))
         ws = d if d.name == "待粗剪" else d / "待粗剪"
+        mp4s = sorted(d.glob("*.mp4"))
+        if not mp4s and (ws / "1_原始").is_dir():  # 已归位过的工作区：素材在 1_原始 里
+            mp4s = sorted((ws / "1_原始").glob("*.mp4"))
         raw = ws / "1_原始"
         raw.mkdir(parents=True, exist_ok=True)
         (ws / "3_转录初选").mkdir(exist_ok=True)
