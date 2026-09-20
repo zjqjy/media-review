@@ -20,8 +20,8 @@ RULES = [  # (文件名模式, 目标目录)——顺序即优先级
     ("1_原始", lambda n: n.endswith(".mp4") and "_trimmed" not in n),
     ("2_静音压缩", lambda n: "_trimmed.mp4" in n or n.endswith(".silence.json")),
     ("3_转录初选", lambda n: n.endswith("_剪切稿.srt") or n == "初选日志.json"
-     or n.endswith(".cuts.json")
-     or (n.endswith(".srt") and "_剪切稿" not in n)),
+     or n.endswith(".cuts.json") or n.endswith("_标注.json")
+     or (n.endswith(".srt") and "_剪切稿" not in n and not n.endswith("_标注.json"))),
     ("_工具", lambda n: n.endswith((".py", ".md")) or n == "初选决定.json"),
 ]
 

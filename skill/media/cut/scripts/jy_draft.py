@@ -129,6 +129,16 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
 
     holes_total = 0
     retake_holes = []
+    # 人工提示标注（语义重复/逻辑混乱等，select 决定的 annotate 落盘的 sidecar）
+    anno_extra = []
+    side = cut_srt.with_name(cut_srt.stem.replace("_剪切稿", "_标注") + ".json")
+    if side.exists():
+        try:
+            for a in json.loads(side.read_text(encoding="utf-8")):
+                anno_extra.append((a["start"], a["end"], a["note"]))
+            print(f"[jy_draft] {video.name}: 人工标注 {len(anno_extra)} 条（{side.name}）")
+        except Exception as e:
+            print(f"[jy_draft] {video.name}: 标注文件解析失败 {side.name}: {e}")
     cuts_path = find_cuts_json(video, cut_srt, args.cuts if anno_offset == 0 else None)
     if args.no_cuts:
         cuts_path = None
@@ -165,6 +175,7 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
         n_sub = rebase_srt(entries, spans, sub)
         sub_entries = parse_srt(str(sub)) if n_sub else []
         anno = make_annotations(entries)  # 叠词类标注（源时间轴）
+        anno.extend(anno_extra)           # 初选人工提示（语义重复/逻辑混乱）
         for h in retake_holes:
             anno.append((h["start"] / 1000, h["start"] / 1000 + 0.1,
                          f"🔁重录对已保B删A B:{h.get('retake_of', '')[:16]}"))

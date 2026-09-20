@@ -147,7 +147,7 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
     decide = json.loads(decide_path.read_text(encoding="utf-8"))
     src_dir = decide_path.parent
     global_fixes = load_global_fixes()
-    log = {"deleted": {}, "repeat": {}, "fixed": {}}
+    log = {"deleted": {}, "repeat": {}, "fixed": {}, "annotated": {}}
     problems = []
     made = []
     for name, plan in decide.items():
@@ -245,16 +245,43 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
             log["repeat"][name] = [
                 {"del": g.get("del", []), "group": g.get("group", ""),
                  "note": g.get("note", "")} for g in reps]
+        # 人工提示标注（语义重复/逻辑混乱等 AI 拿不准、留给精剪判断的点）
+        def _sec(time_str):
+            m = re.match(r"(\d+):(\d+):(\d+)[,.](\d+)", time_str.strip())
+            g = [int(x) for x in m.groups()]
+            return g[0] * 3600 + g[1] * 60 + g[2] + g[3] / 1000
+
+        annotations = []
+        for a in plan.get("annotate") or []:
+            ids = [int(i) for i in a.get("ids", [])]
+            texts = [by_idx[i] for i in ids if i in by_idx]
+            if not texts:
+                problems.append(f"[{name}] annotate ids {ids} 都不存在")
+                continue
+            start = min(_sec(t["time"].split(" --> ")[0]) for t in texts) - 0.2
+            end = max(_sec(t["time"].split(" --> ")[1]) for t in texts) + 0.2
+            note = a.get("note", "请精剪注意")
+            annotations.append({"start": round(start, 3), "end": round(end, 3),
+                                "note": f"⚠{note}：{texts[0]['text'][:14]}"})
+        if annotations:
+            log["annotated"][name] = annotations
         print(f"[{name}] {len(entries)} 条 → 剪切稿 {len(kept)} 条"
-              f"（删 {len(deleted)}，修 {len(fixes)}）")
+              f"（删 {len(deleted)}，修 {len(fixes)}，标注 {len(annotations)}）")
         if dry:
             for d in deleted:
                 print(f"  删 {d}")
             for f in fixes:
                 print(f"  修 {f}")
+            for a in annotations:
+                print(f"  标 {a['start']:.1f}-{a['end']:.1f}s {a['note']}")
         else:
             out = src.with_name(src.stem + "_剪切稿.srt")
             write_srt(out, kept)
+            if annotations:
+                side = src.with_name(src.stem + "_标注.json")
+                side.write_text(json.dumps(annotations, ensure_ascii=False, indent=1),
+                                encoding="utf-8")
+                made.append(side)
             made.append(out)
     if problems:
         print("\n!!! 锚字核验未过，逐条人工核对（全部未落盘）：")
