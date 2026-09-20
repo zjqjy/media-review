@@ -23,4 +23,4 @@ description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后�
 | 剪完接着问数据 | cut → review | 先走完 cut 的归档，再进 review |
 | 意图不明 | 问一句 | "要剪素材还是复盘数据？"，别猜着跑 |
 
-子技能目录各自带 `scripts/`，脚本路径以子技能 SKILL.md 内写的为准。跨子技能共用的东西只有两处：vault 路径（cut 归档逐字稿、review 读取）、`cut/scripts/asr_fixes.json`（错拼表，post 的字幕也套用）。
+子技能目录各自带 `scripts/`，脚本路径以子技能 SKILL.md 内写的为准。跨子技能共用的东西只有两处：vault 路径（post 归档逐字稿、review 读取）、`cut/scripts/asr_fixes.json`（错拼表，post 的字幕也套用）。

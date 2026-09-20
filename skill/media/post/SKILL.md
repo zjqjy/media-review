@@ -14,6 +14,11 @@ description: media 子技能：发前后处理。由 media 门面路由进入—
 | 1 字幕 | `python scripts/final_sub.py 成片.mp4` | 转录约 1/10 成片时长 | 转录→自动套 asr_fixes 错拼表→`<成片>_字幕.srt`；技术词多加 `--hotword "词1 词2"`；剪映媒体面板导入 |
 | 2 响度 | `python scripts/loudnorm.py 成片.mp4 [-I -14]` | 秒级（视频流 copy） | EBU R128 两遍法，实测值线性回写；缺省 -16 LUFS/TP -1.5，抖音竖版可 -14；输出 `<成片>_响度.mp4` |
 | 3 字幕草稿 | `python scripts/draft_sub.py <成片>_响度.mp4 [--retire 粗剪草稿名]` | 秒级 | 想**回剪映继续编辑**就用这个：响度成片整段上主轨+字幕轨直接建好（样式同 cut 粗剪草稿）；不想回剪映就跳过，直接用 mp4+srt |
+| 4 归档 | 逐字稿入知识库（见归档节） | 1min | vault 是 git 仓库时提交 |
+
+## 逐字稿归档（从 cut 移入，2026-09-20 用户决定：归档跟成片定稿走）
+
+取 cut 工作区 `3_转录初选/<段>.srt`（原文含口误）拼成本期逐字稿 → vault `transcripts` 目录 `第N期_标题_逐字稿.md`，末尾追加漏斗数据 `原始 3h → ②粗剪后 12m（删 N 条+词级洞 M 个）`（漏斗数据从 cut 交接信息拿）；vault 是 git 仓库时提交。归档后告知用户"复盘时不用再贴逐字稿"。vault 路径见 review 子技能配置（`vault_path`/`transcripts`）。
 
 **草稿生命周期**（防草稿列表堆积，且有保险丝）：粗剪草稿**没人动过**（管线刚出、没在剪映里打开过）→ 可 `--retire` 退场，工作区剪切稿随时秒级重出；**精剪过的不退**——精剪操作全做在粗剪草稿里，且剪映打开即加密、管线读不回，动过的粗剪草稿是精剪成果的唯一载体。`--retire` 内建 draft_touched_by_user 检查，动过的自动跳过并提示。
 | 4 量测 | `python scripts/loudnorm.py 成片.mp4 --measure` | 秒级 | 只出报告不改文件：时长/分辨率/实测 LUFS/LRA/真峰值——发布前体检用 |
