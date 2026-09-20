@@ -13,7 +13,8 @@ description: media 子技能：发前后处理。由 media 门面路由进入—
 |---|---|---|---|
 | 1 字幕 | `python scripts/final_sub.py 成片.mp4` | 转录约 1/10 成片时长 | 转录→自动套 asr_fixes 错拼表→`<成片>_字幕.srt`；技术词多加 `--hotword "词1 词2"`；剪映媒体面板导入 |
 | 2 响度 | `python scripts/loudnorm.py 成片.mp4 [-I -14]` | 秒级（视频流 copy） | EBU R128 两遍法，实测值线性回写；缺省 -16 LUFS/TP -1.5，抖音竖版可 -14；输出 `<成片>_响度.mp4` |
-| 3 量测 | `python scripts/loudnorm.py 成片.mp4 --measure` | 秒级 | 只出报告不改文件：时长/分辨率/实测 LUFS/LRA/真峰值——发布前体检用 |
+| 3 字幕草稿 | `python scripts/draft_sub.py <成片>_响度.mp4` | 秒级 | 想**回剪映继续编辑**就用这个：响度成片整段上主轨+字幕轨直接建好（样式同 cut 粗剪草稿）；不想回剪映就跳过，直接用 mp4+srt |
+| 4 量测 | `python scripts/loudnorm.py 成片.mp4 --measure` | 秒级 | 只出报告不改文件：时长/分辨率/实测 LUFS/LRA/真峰值——发布前体检用 |
 
 ## 技术事实（避免重新踩坑）
 
