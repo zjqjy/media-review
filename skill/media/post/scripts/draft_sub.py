@@ -99,8 +99,14 @@ def main():
 
     entries = parse_srt(str(srt))
     with tempfile.TemporaryDirectory() as td:
+        def fmt(t):
+            ms = int(round(t * 1000))
+            h, rem = divmod(ms, 3600000)
+            m, rem = divmod(rem, 60000)
+            s, ms2 = divmod(rem, 1000)
+            return f"{h:02d}:{m:02d}:{s:02d},{ms2:03d}"
         wrapped = Path(td) / "sub.srt"
-        lines = [f"{i}\n{a} --> {b}\n{wrap_zh(txt, SUB_WRAP)}\n"
+        lines = [f"{i}\n{fmt(a)} --> {fmt(b)}\n{wrap_zh(txt, SUB_WRAP)}\n"
                  for i, (a, b, txt) in enumerate(entries, 1)]
         wrapped.write_text("\n".join(lines), encoding="utf-8")
         sub_ref = TextSegment("样式参考", Timerange(0, 1),
