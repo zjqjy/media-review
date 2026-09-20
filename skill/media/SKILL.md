@@ -20,7 +20,7 @@ description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后�
 | 加字幕 / 响度统一 / 成片后处理 / 发布前检查 | **post** | 读 `post/SKILL.md`（路径相对本技能目录）照做 |
 | 复盘 / 看数据 / 到期观察点 / 改进实验核对 / 发完视频看表现 | **review** | 读 `review/SKILL.md` 照做 |
 | 做卡 / 字幕卡 / 信息卡 / HTML PPT / 录屏卡 / 插播卡 | **cards** | 读 `cards/SKILL.md` 照做（录屏用 HTML 卡；跟口播节拍的纯动画直出归 Remotion，不归这里） |
-| 剪完接着问数据 | cut → review | 先走完 cut 的归档，再进 review |
+| 剪完接着问数据 | post → review | 先走完 post 的逐字稿归档，再进 review |
 | 意图不明 | 问一句 | "要剪素材还是复盘数据？"，别猜着跑 |
 
 子技能目录各自带 `scripts/`，脚本路径以子技能 SKILL.md 内写的为准。跨子技能共用的东西只有两处：vault 路径（post 归档逐字稿、review 读取）、`cut/scripts/asr_fixes.json`（错拼表，post 的字幕也套用）。
