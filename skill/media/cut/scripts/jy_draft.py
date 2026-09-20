@@ -189,6 +189,29 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
     return material, spans, sub_entries, anno_entries, {"holes": holes_total}
 
 
+def draft_touched_by_user(content_path: Path, stamp_path: Path) -> bool:
+    """同名草稿是否被管线之外动过（决定能不能原地刷新）。
+
+    管线每次写完草稿都盖戳（draft_content.json 的 sha256）。戳在且哈希一致 =
+    管线自己写的那份没人碰过，可原地覆盖；戳在但哈希不符 = 剪映精剪/手工改过，
+    一律视为 touched（不能只靠格式检测——手工编辑不会改成剪映混淆格式）；
+    无戳（旧版管线产物）退回格式检测：剪映改写成自有混淆格式（BUG 2026-09-19）。
+    """
+    import hashlib
+    if stamp_path.exists():
+        try:
+            stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+            digest = hashlib.sha256(content_path.read_bytes()).hexdigest()
+            return digest != stamp.get("sha256")
+        except Exception:
+            return True
+    try:
+        old_content = json.loads(content_path.read_text(encoding="utf-8-sig"))
+        return old_content.get("new_version") not in (None, "110.0.0")
+    except Exception:
+        return True  # 混淆/损坏，解析不了 = 剪映碰过
+
+
 def register_in_root_meta(folder: Path, name: str):
     """把草稿登记进剪映根目录的 root_meta_info.json 索引。
 
@@ -264,7 +287,8 @@ def main():
     ap.add_argument("--cuts", default=None, help="口头禅洞 .cuts.json（单段模式）")
     ap.add_argument("--no-cuts", action="store_true", help="不做词级跳剪")
     ap.add_argument("--force", action="store_true",
-                    help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）")
+                    help="剪映运行中仍强制生成（默认拒绝：运行中的剪映退出时会把外部新草稿扫进它的回收站）；"
+                         "同名草稿被剪映/人工改过时也允许原地覆盖（默认自动落 v2 不覆盖）")
     ap.add_argument("--narr-speed", type=float, default=1.0,
                     help="解说段播放速度。粗剪保持 1.0；加速属精剪域，测好后作为精剪步骤用")
     ap.add_argument("--gap-speed", type=float, default=1.0,
@@ -312,18 +336,22 @@ def main():
         sys.exit(f"剪映草稿目录不存在：{folder}（剪映全局设置→草稿位置，用 --draft-folder 指定）")
     name = args.name or f"media_cut_{first_video.stem}_粗剪"
 
-    # 防覆盖：剪映打开过草稿后会把 draft_content.json 改写成自有混淆格式
-    # （BUG 报告 2026-09-19）。同名重新生成前先检测——是剪映改写过的就不动。
+    # 防覆盖（默认不覆盖）：同名草稿只要不是管线自己写的、没人碰过的那份，
+    # 就自动改名落 v2/v3…，绝不覆盖——用户在剪映里精剪过的成果不会丢。
+    # 只有 --force 才允许原地覆盖被动过的草稿（放弃旧内容，慎用）。
     existing = folder / name / "draft_content.json"
     if existing.exists():
-        try:
-            old_content = json.loads(existing.read_text(encoding="utf-8-sig"))
-            touched_by_jy = old_content.get("new_version") not in (None, "110.0.0")
-        except Exception:
-            touched_by_jy = True  # 混淆/损坏，解析不了 = 剪映碰过
-        if touched_by_jy:
-            sys.exit(f"草稿 {name} 已被剪映打开/修改过（内容是剪映自有格式），"
-                     f"重新生成会覆盖你的手工剪辑——换一个 --name，或先在剪映里备份")
+        touched = draft_touched_by_user(existing, folder / name / "_media_cut_stamp.json")
+        if touched and not args.force:
+            base = name
+            for n in range(2, 100):
+                if not (folder / f"{base}v{n}" / "draft_content.json").exists():
+                    name = f"{base}v{n}"
+                    break
+            else:
+                sys.exit(f"草稿版本名用尽：{base}v2..v99 都已存在，请清理或换 --name")
+            print(f"[jy_draft] {base} 已被剪映/人工改过——不覆盖，本次落到 {name}"
+                  f"（确认放弃旧内容才用 --force 原地覆盖）")
 
     probe = VideoMaterial(str(first_video))
     script = DraftFolder(str(folder)).create_draft(
@@ -432,6 +460,15 @@ def main():
     meta["draft_id"] = str(uuid.uuid4()).upper()
     meta["draft_name"] = name
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=4), encoding="utf-8")
+
+    # 盖戳：记录本次写出的 draft_content.json 哈希——下次同名生成时区分
+    # "管线自己写的、没人碰过"（可原地刷新）和"用户/剪映改过"（自动落 v2 不覆盖）
+    import hashlib
+    stamp_path = folder / name / "_media_cut_stamp.json"
+    stamp_path.write_text(json.dumps({
+        "sha256": hashlib.sha256((folder / name / "draft_content.json").read_bytes()).hexdigest(),
+        "written_at": __import__("time").strftime("%Y-%m-%d %H:%M:%S"),
+    }, ensure_ascii=False), encoding="utf-8")
 
     # 登记进 root_meta_info.json 索引——不登记草稿在剪映列表里隐形
     register_in_root_meta(folder, name)
