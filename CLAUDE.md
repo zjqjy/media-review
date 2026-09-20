@@ -1,6 +1,6 @@
 # media-review 开发上下文
 
-自媒体 skill：`/media` 一个入口，门面路由两个子技能——**cut**（发前剪辑提效）+ **review**（发后数据复盘）。设计文档：复盘系统以 vault `03_项目/自媒体复盘系统/设计文档.md` 为准（本仓 `docs/design.md` 是同步副本；vault 是作者个人知识库，不开源）；剪辑提效以 vault `30_方法论/剪辑提效工作流.md` 为准（方法论沉淀，skill 是其执行规程）。所有知识库路径走 `_config_local.json` 的 `paths` 配置（schema 见仓根 `config.example.json`），不硬编码个人目录结构。
+自媒体 skill：`/media` 一个入口，门面路由子技能——**cut**（发前剪辑提效）+ **post**（发前后处理）+ **review**（发后数据复盘）+ **cards**（录屏用 HTML 卡片：插播信息卡/分步 PPT，oil-cover 视觉体系，空格分步对口播；纯动画代码直出归 Remotion 不归它）。设计文档：复盘系统以 vault `03_项目/自媒体复盘系统/设计文档.md` 为准（本仓 `docs/design.md` 是同步副本；vault 是作者个人知识库，不开源）；剪辑提效以 vault `30_方法论/剪辑提效工作流.md` 为准（方法论沉淀，skill 是其执行规程）。所有知识库路径走 `_config_local.json` 的 `paths` 配置（schema 见仓根 `config.example.json`），不硬编码个人目录结构。
 
 ## 这是什么
 

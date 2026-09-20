@@ -1,0 +1,36 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>自动卡模板（CSS delay 时间轴，≤8s）</title>
+<link rel="stylesheet" href="卡.css">
+<style>
+/* ===== 自动骨架：打开即播，F5 重播。总时长 ≤8s，超了就改分步卡 =====
+   节奏用 .d1-.d8 的 animation-delay 控制；三幕式示例：铺垫→宣言→压轴 */
+@keyframes fadeThrough { from { opacity: 0 } to { opacity: 1 } }
+.layer { position: absolute; inset: 0; opacity: 0; animation: fadeThrough .5s forwards; }
+.center { position: absolute; left: 130px; right: 130px; top: 0; bottom: 120px; display: flex; flex-direction: column; justify-content: center; gap: 44px; align-items: center; text-align: center; }
+.main { font-size: 108px; font-weight: 800; letter-spacing: 2px; }
+.sub { font-size: 42px; color: #5c646d; }
+</style></head><body><div id="fit"><div class="stage">
+<div class="atmos blue" style="top:-260px;right:-220px"></div>
+<div class="atmos pink" style="bottom:-320px;left:260px"></div>
+<div class="grid"></div><div class="grain"></div>
+<div class="epmark"><span class="t">EP.__ · ____</span><span class="n">?</span></div>
+
+<!-- 第一幕 0-2.5s：铺垫（数字/对比/图示） -->
+<div class="layer" style="animation-delay:.1s"><div class="center">
+  <div class="main">铺垫内容</div>
+</div></div>
+
+<!-- 第二幕 2.5-5s：宣言 -->
+<div class="layer" style="animation-delay:2.5s"><div class="center">
+  <div class="main">核心<span class="hl-yellow">关键词</span></div>
+</div></div>
+
+<!-- 第三幕 5-8s：压轴（chip 组） -->
+<div class="layer" style="animation-delay:5s"><div class="center">
+  <div style="display:flex;gap:60px">
+    <span class="chip cream" style="font-size:80px;font-weight:800;padding:18px 54px">关键词一</span>
+    <span class="chip blue" style="font-size:80px;font-weight:800;padding:18px 54px">关键词二</span>
+  </div>
+  <div class="sub">收尾小注（可不放）</div>
+</div></div>
+
+</div></div><script>const f=()=>{const s=Math.min(innerWidth/1920,innerHeight/1080);fit.style.transform=`translate(-50%,-50%) scale(${s})`};f();onresize=f;</script></body></html>

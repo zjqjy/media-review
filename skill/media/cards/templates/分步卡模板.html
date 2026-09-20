@@ -1,0 +1,63 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>分步卡模板（空格下一拍）</title>
+<link rel="stylesheet" href="卡.css">
+<style>
+/* ===== 分步骨架：空格/点击=下一拍（对齐口播逐句），R 重来，同屏只有一拍 =====
+   用法：把每个 .act 换成你的一拍内容；拍内元素用 .word/.w1-.w3 做级联进场 */
+.act { position: absolute; inset: 0; display: none; }
+.act.on { display: block; animation: actIn .45s cubic-bezier(.2,.7,.2,1) }
+@keyframes actIn { from { opacity: 0; transform: translateY(22px) } to { opacity: 1; transform: none } }
+@keyframes drop { from { opacity: 0; transform: translateY(-26px) } to { opacity: 1; transform: none } }
+.word { opacity: 0; animation: drop .45s forwards; }
+.w1 { animation-delay: .15s } .w2 { animation-delay: .5s } .w3 { animation-delay: .85s }
+.center { position: absolute; left: 130px; right: 130px; top: 0; bottom: 120px; display: flex; flex-direction: column; justify-content: center; gap: 44px; }
+.idx { display: flex; align-items: center; gap: 22px; }
+.idx .no { font-family: Georgia, serif; font-style: italic; font-size: 44px; color: #5c646d; }
+.idx .bar { width: 66px; height: 5px; background: #23282d; opacity: .75; border-radius: 3px; }
+.idx .en { font-family: Georgia, serif; font-style: italic; font-size: 36px; color: rgba(35,40,45,.45); }
+.main { font-size: 108px; font-weight: 800; line-height: 1.25; letter-spacing: 2px; }
+.sub { font-size: 42px; color: #5c646d; }
+.dots { position: absolute; bottom: 40px; left: 130px; display: flex; gap: 14px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; background: rgba(35,40,45,.18); }
+.dots i.on { background: #23282d; }
+.hint { position: absolute; bottom: 34px; right: 130px; font-size: 26px; color: rgba(35,40,45,.35); }
+</style></head><body><div id="fit"><div class="stage">
+<div class="atmos blue" style="top:-260px;right:-220px"></div>
+<div class="atmos pink" style="bottom:-320px;left:260px"></div>
+<div class="grid"></div><div class="grain"></div>
+<div class="epmark"><span class="t">EP.__ · ____</span><span class="n">?</span></div>
+<div class="dots" id="dots"><i></i><i></i><i></i></div>
+<div class="hint" id="hint">空格 / 点击＝下一拍 · R 重来</div>
+
+<!-- 拍1：序号+主句+副标的杂志式结构；主句只放关键词级文字（不重复口播） -->
+<div class="act" id="a1"><div class="center">
+  <div class="idx"><span class="no">01</span><span class="bar"></span><span class="en">english note</span></div>
+  <div class="main">关键词<span class="hl-yellow">高亮词</span></div>
+  <div class="sub">一行副标（口播没说的新信息，或不放）</div>
+</div></div>
+
+<!-- 拍2：级联进场示例 -->
+<div class="act" id="a2"><div class="center">
+  <div class="idx"><span class="no">02</span><span class="bar"></span><span class="en">next</span></div>
+  <div style="display:flex;gap:60px">
+    <span class="word w1" style="font-size:84px;font-weight:800;background:#f4ecd4;color:#23282d;padding:18px 54px;border-radius:24px">块一</span>
+    <span class="word w2" style="font-size:84px;font-weight:800;background:#e3e8f8;color:#23282d;padding:18px 54px;border-radius:24px">块二</span>
+    <span class="word w3" style="font-size:84px;font-weight:800;color:#5c646d;padding:18px 0">③ ？</span>
+  </div>
+</div></div>
+
+</div></div>
+<script>
+const f=()=>{const s=Math.min(innerWidth/1920,innerHeight/1080);fit.style.transform=`translate(-50%,-50%) scale(${s})`};f();onresize=f;
+const acts=[...document.querySelectorAll('.act')];
+const dots=[...document.querySelectorAll('.dots i')];
+let i=-1;
+function show(n){acts.forEach((a,k)=>a.classList.toggle('on',k===n));dots.forEach((d,k)=>d.classList.toggle('on',k<=n));
+  hint.style.opacity=n===acts.length-1?0:1;}
+function next(){i=Math.min(i+1,acts.length-1);show(i);}
+function reset(){i=-1;acts.forEach(a=>a.classList.remove('on'));dots.forEach(d=>d.classList.remove('on'));}
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();next();}
+  else if(e.key==='r'||e.key==='R'){reset();}
+});
+addEventListener('click',next);
+</script></body></html>

@@ -1,0 +1,50 @@
+/* oil-cover 视觉体系 · 共享样式（1920×1080 舞台，自适应缩放，F5 重播动画） */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: #e8e6e0; overflow: hidden; }
+#fit { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform-origin: center center; }
+.stage { position: absolute; inset: 0; overflow: hidden;
+  font-family: "PingFang SC", "SF Pro CJK", "Microsoft YaHei", sans-serif;
+  background: #faf9f5; color: #23282d; }
+.serif { font-family: Georgia, "Times New Roman", "Songti SC", serif; }
+
+/* 纸面：细网格 + pastel 氛围 + 轻 grain */
+.grid { position: absolute; inset: 0; background:
+  repeating-linear-gradient(0deg, rgba(35,40,45,.045) 0 1.5px, transparent 1.5px 64px),
+  repeating-linear-gradient(90deg, rgba(35,40,45,.045) 0 1.5px, transparent 1.5px 64px); }
+.atmos { position: absolute; width: 1050px; height: 1050px; border-radius: 50%; filter: blur(115px); }
+.atmos.blue { background: rgba(214,220,244,.55); } .atmos.pink { background: rgba(245,226,233,.5); }
+.atmos.cream { background: rgba(243,236,215,.5); }
+.grain { position: absolute; inset: 0; opacity: .5; background:
+  repeating-linear-gradient(0deg, rgba(35,40,45,.012) 0 1px, transparent 1px 3px); }
+
+/* 入场动画（F5 重播） */
+@keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+@keyframes swapL { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
+@keyframes swapR { from { opacity: 0; transform: translateX(46px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+.rise { opacity: 0; animation: rise .6s cubic-bezier(.2,.7,.2,1) forwards; }
+.swap-l { opacity: 0; animation: swapL .5s cubic-bezier(.2,.7,.2,1) forwards; }
+.swap-r { opacity: 0; animation: swapR .5s cubic-bezier(.2,.7,.2,1) forwards; }
+.d1{animation-delay:.1s}.d2{animation-delay:.25s}.d3{animation-delay:.4s}.d4{animation-delay:.55s}
+.d5{animation-delay:.7s}.d6{animation-delay:.85s}.d7{animation-delay:1s}.d8{animation-delay:1.15s}
+
+/* 组件 */
+.chip { display: inline-block; white-space: nowrap; font-size: 40px; font-weight: 600;
+  padding: 12px 34px; border-radius: 999px; }
+.chip.pink { background: #f8e3ea; color: #9c4668; } .chip.blue { background: #e3e8f8; color: #41518f; }
+.chip.cream { background: #f4ecd4; color: #8a6d24; } .chip.sage { background: #e2ecdf; color: #4c6b48; }
+.hl-yellow { background: linear-gradient(transparent 62%, #f4ecd4 62%); }
+.hl-blue { background: linear-gradient(transparent 62%, #e3e8f8 62%); }
+.hl-green { background: linear-gradient(transparent 62%, #e2ecdf 62%); }
+.hl-pink { background: linear-gradient(transparent 62%, #f8e3ea 62%); }
+.epmark { position: absolute; top: 64px; right: 84px; display: flex; align-items: center; gap: 18px; }
+.epmark .t { font-family: Georgia, serif; font-style: italic; font-size: 34px; color: #5c646d; }
+.epmark .n { font-family: Georgia, serif; font-size: 40px; font-weight: 700; color: #23282d;
+  border: 2.5px solid rgba(35,40,45,.25); border-radius: 14px; padding: 4px 18px; }
+.rule { display: flex; align-items: center; gap: 22px; }
+.rule::before { content: ""; width: 66px; height: 5px; background: #23282d; opacity: .75; border-radius: 3px; }
+.card { background: rgba(255,255,255,.72); border: 1.5px solid rgba(35,40,45,.08); border-radius: 24px;
+  box-shadow: 0 18px 44px rgba(30,35,40,.10), 0 4px 12px rgba(30,35,40,.06); }
+
+/* 自适应缩放（由页内 3 行 JS 调用 fit()） */
