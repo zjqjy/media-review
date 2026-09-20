@@ -269,6 +269,32 @@ def register_in_root_meta(folder: Path, name: str):
     print(f"[jy_draft] 已{action}到剪映草稿索引（root_meta_info.json，共 {len(store)} 条）")
 
 
+def retire_draft(folder: Path, name: str):
+    """把草稿标记移除（进剪映回收站，可恢复）——粗剪草稿用完即退场用。
+
+    机制：root_meta_info.json 登记条目的 tm_draft_removed 置时间戳（µs，与
+    tm_draft_modified 同量纲）。语义未在剪映源码层面验证，但字段本就存在、
+    最坏情况是列表里还显示——手动删一下即可，不会丢数据（草稿目录不动）。
+    """
+    import time
+    root_meta = folder / "root_meta_info.json"
+    if not root_meta.exists():
+        print(f"[jy_draft] 无登记表，跳过 retire：{name}")
+        return False
+    registry = json.loads(root_meta.read_text(encoding="utf-8-sig"))
+    store = registry.setdefault("all_draft_store", [])
+    entry = next((e for e in store if e.get("draft_name") == name), None)
+    if entry is None:
+        print(f"[jy_draft] 登记表里没有 {name}，跳过 retire")
+        return False
+    entry["tm_draft_removed"] = int(time.time() * 1e6)
+    root_meta.write_text(json.dumps(registry, ensure_ascii=False, indent=1),
+                         encoding="utf-8")
+    print(f"[jy_draft] 粗剪草稿 {name} 已标记移除（剪映回收站可恢复；"
+          f"若列表仍显示，手动删一下即可，草稿目录未动）")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser(description="剪映草稿直出（主轨保留段+字幕轨+标注轨，支持多段按序）")
     ap.add_argument("video", nargs="?", default=None, help="单段模式：视频")

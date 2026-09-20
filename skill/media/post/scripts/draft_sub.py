@@ -21,7 +21,7 @@ sys.path.insert(0, str(CUT_SCRIPTS))
 from srt_cut import parse_srt, wrap_zh  # noqa: E402
 from jy_draft import (SUB_BOTTOM_Y, SUB_LINE_UNIT, SUB_SIZE, SUB_WRAP,
                       draft_touched_by_user, register_in_root_meta,
-                      resolve_draft_root)
+                      resolve_draft_root, retire_draft)
 
 
 def jianying_running():
@@ -39,6 +39,9 @@ def main():
                     help="字幕 srt（缺省找 <成片>_字幕.srt，再退 <成片>.srt）")
     ap.add_argument("--draft-folder", default=None, help="草稿根目录（缺省同 jy_draft）")
     ap.add_argument("--name", default=None, help="草稿名（缺省 <成片名>_成片）")
+    ap.add_argument("--retire", default=None, metavar="粗剪草稿名",
+                    help="生成定稿草稿后把粗剪草稿标记移除（进剪映回收站可恢复）"
+                         "——草稿列表不堆积，一期一份活草稿")
     ap.add_argument("--fps", type=int, default=30)
     args = ap.parse_args()
 
@@ -131,6 +134,8 @@ def main():
         "written_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }, ensure_ascii=False), encoding="utf-8")
     register_in_root_meta(folder, name)
+    if args.retire:
+        retire_draft(folder, args.retire)
 
     dur = material.duration / 1e6
     print(f"[draft_sub] 草稿已生成：{folder / name}")
