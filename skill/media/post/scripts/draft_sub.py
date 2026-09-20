@@ -135,7 +135,18 @@ def main():
     }, ensure_ascii=False), encoding="utf-8")
     register_in_root_meta(folder, name)
     if args.retire:
-        retire_draft(folder, args.retire)
+        rough_content = folder / args.retire / "draft_content.json"
+        rough_stamp = folder / args.retire / "_media_cut_stamp.json"
+        if not rough_content.exists():
+            print(f"[draft_sub] 粗剪草稿 {args.retire} 不存在，跳过 retire")
+        elif draft_touched_by_user(rough_content, rough_stamp):
+            # 保险丝：精剪的操作（加素材/调字幕/删段）都做在粗剪草稿里，且剪映
+            # 一打开就加密、管线读不回——动过的粗剪草稿是精剪成果的唯一载体，
+            # 绝不 retire。只有管线刚出、没人碰过的才退场（工作区可秒级重出）
+            print(f"[draft_sub] 粗剪草稿 {args.retire} 被剪映/人工改过——里面可能有你的"
+                  f"精剪操作，不 retire（确认没用了就在剪映里手动删）")
+        else:
+            retire_draft(folder, args.retire)
 
     dur = material.duration / 1e6
     print(f"[draft_sub] 草稿已生成：{folder / name}")
