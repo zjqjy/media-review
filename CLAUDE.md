@@ -7,7 +7,7 @@
 单个 skill（`skill/media/`），门面 SKILL.md 按用户意图分发到子技能目录：
 
 - **cut**：三层漏斗粗剪——①静音压缩（`silence_trim.py`）→ ②FunASR 转录（`asr_funasr.py`，热词可加；AutoCut/Whisper 备选）+ AI 初选删行（人工复核后 `srt_cut.py` 剪切）→ ③精剪交接；逐字稿归档知识库 `transcripts` 配置目录，是 review 复盘的直接输入（发前喂发后闭环）
-- **review**：清算到期观察点（D+3/D+7/D+30）→ B站自动取数（创作中心接口，Cookie 鉴权）→ 收集窗贴抖音/小红书截图 → 按爆款公式三要素（选题×素材×内容）归因 → 复盘报告写回 Obsidian vault → 半自动写回选题池/复用片段/对标
+- **review**：清算到期观察点（D+3/D+7/D+30）→ B站自动取数（创作中心接口，Cookie 鉴权）→ 收集窗收抖音/小红书数据（后台导出 xlsx 优先，截图兜底） → 按爆款公式三要素（选题×素材×内容）归因 → 复盘报告写回 Obsidian vault → 半自动写回选题池/复用片段/对标
 
 ## 结构
 
