@@ -17,3 +17,7 @@ Thumbs.db
 desktop.ini
 .DS_Store
 _env_verified.json
+
+# benchmark 下载的对标视频素材（双重防护之一：脚本还会在每个下载目录写 .gitignore）
+对标下载/
+*_下载/
