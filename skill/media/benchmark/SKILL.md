@@ -19,7 +19,7 @@ description: media 子技能：找对标与拆解模仿（B站）。由 media �
 | 步 | 动作 | 要点 |
 |---|---|---|
 | 0 输入 | 问清三件事：赛道关键词？已有对标 UP？还是单条视频链接？ | 三种入口对应不同起步命令 |
-| 1 找 | `python scripts/bili_bench.py search "关键词" --limit 20`；有 UP 就 `space <mid|主页URL> --order click` | 挑选标准见下节；候选给用户拍板 |
+| 1 找 | `python scripts/bili_bench.py search "关键词" --limit 20`；有 UP 就 `space <mid|主页URL>` | 挑选标准见下节；候选给用户拍板 |
 | 2 拉 | `python scripts/bili_bench.py fetch BVxx` | 详情+封面+视频+AI字幕逐字稿一条龙；`--no-video` 只要文字材料 |
 | 3 补 | `python scripts/bili_bench.py comments BVxx --n 30` | 高赞评论 = 观众在要什么，拆解必看 |
 | 4 拆 | 读逐字稿+看视频，照 `templates/对标拆解模板.md` 写笔记 | 落 `<benchmarks>/<UP主名>/BVxx_标题.md` |
@@ -53,6 +53,7 @@ description: media 子技能：找对标与拆解模仿（B站）。由 media �
 | 情况 | 动作 |
 |---|---|
 | HTTP 412 / code -352 | 风控。等几分钟再试；反复出现跑 login 上小号态、或换网络；**别缩短 RATE 限速硬刚** |
+| space 报 -403 | 2026-10 实测：space 投稿接口被 B站风控挡死（要页面 JS 下发的风控令牌，连 yt-dlp 都 412），脚本会自动降级为"card 换 UP 名 → 搜索召回热门稿"的近似列表；召回不全时让用户从该 UP 主页手动贴 2-3 条爆款链接 |
 | `space`/`subs` 报缺 bench_sessdata | 跑 `login` 扫码（小号） |
 | 无 AI 字幕 | 视频走 cut 转录（asr_funasr.py）；纯画面无口述的对标没有逐字稿，拆结构靠看片标注时间轴 |
 | yt-dlp 下载失败 | 看脚本尾部 stderr（尾部 800 字符）；412 类换时段，版权/地区类放弃换对标 |

@@ -9,7 +9,7 @@
 用法：
   python bili_bench.py login --config PATH          # 二维码登录小号，写 bench_sessdata（需 qrcode 库）
   python bili_bench.py search "剪映教程" [--pages 2] [--order click]   # 关键词搜索（公开）
-  python bili_bench.py space <mid|主页URL> [--order click] [--pages 2] # UP投稿列表（需小号登录）
+  python bili_bench.py space <mid|主页URL> [--order click] [--pages 2] # UP热门稿（接口被风控自动降级搜索召回）
   python bili_bench.py view BVxx|URL                # 单视频详情（公开）
   python bili_bench.py comments BVxx [--n 30]       # 高赞评论（公开）
   python bili_bench.py subs BVxx [--dir DIR]        # 只拉 AI 字幕 → srt+md（需小号登录）
@@ -18,8 +18,10 @@
   通用参数：--config PATH（默认自动向上找 _config_local.json）
            --json（表格输出改 JSON，机器可读）
 
-搜索/详情/评论区匿名可用（主站预热+buvid+wbi 签名）；space 列表和 AI 字幕要
-小号登录。无 AI 字幕的稿子逐字稿走 cut 子技能的 FunASR 转录（见 benchmark/SKILL.md）。
+搜索/详情/评论区匿名可用（主站预热+buvid+wbi 签名）；AI 字幕要小号登录。
+space 投稿接口 2026-10 实测被服务端风控挡死（连 yt-dlp 都 412），命令会自动降级：
+card 换 UP 名 → 搜索召回该 UP 热门稿（近似列表，不全）。无 AI 字幕的稿子逐字稿
+走 cut 子技能的 FunASR 转录（见 benchmark/SKILL.md）。
 """
 
 import argparse
@@ -286,11 +288,17 @@ def bench_dir(cfg, config_path):
 
 
 def default_media_dir(cfg, config_path):
-    """下载素材默认目录：vault 对标目录下的 _下载（会自动写 .gitignore 防止视频进 git）。"""
+    """下载素材默认目录：vault 对标目录下的 _下载（会自动写 .gitignore 防止视频进 git）。
+    vault 根在磁盘上不存在（vault_path 还是占位符/没配置）时回落当前目录，
+    防止把下载目录建到假路径下面。"""
     try:
-        return bench_dir(cfg, config_path) / "_下载"
-    except Exception:  # noqa: BLE001——没有 vault 配置就落当前目录
-        return Path.cwd() / "对标下载"
+        root = vault_root(cfg, config_path)
+        if root.is_dir():
+            key = (cfg.get("paths") or {}).get("benchmarks", "20_自媒体/对标")
+            return root / key / "_下载"
+    except Exception:  # noqa: BLE001
+        pass
+    return Path.cwd() / "对标下载"
 
 
 # ---------------------------------------------------------------- login（扫码，写 bench_sessdata）
@@ -438,10 +446,7 @@ def cmd_search(client, args):
         rows += page_rows
         if not page_rows:
             break
-    rows = rows[:args.limit] if args.limit else rows
-    for r in rows:
-        if r.get("pubdate"):
-            r["pubdate"] = datetime.fromtimestamp(r["pubdate"]).strftime("%Y-%m-%d")
+    rows = fmt_search_rows(rows[:args.limit] if args.limit else rows)
     if not rows:
         print(f"没搜到「{args.keyword}」的结果——换个关键词试试")
         return
@@ -462,14 +467,19 @@ def resolve_mid(text):
     return None
 
 
-def cmd_space(client, args):
-    """UP 投稿列表（需小号登录）。order: pubdate 最新/click 播放多/stow 收藏多。"""
-    mid = resolve_mid(args.target)
-    if not mid:
-        die("space 参数要 mid（纯数字）或 space.bilibili.com 链接")
-    order = {"pubdate": "pubdate", "click": "click", "stow": "stow"}.get(args.order, "pubdate")
+def fmt_search_rows(rows):
+    """pubdate 时间戳 → 日期字符串（就地转换）。"""
+    for r in rows:
+        if r.get("pubdate") and isinstance(r["pubdate"], int):
+            r["pubdate"] = datetime.fromtimestamp(r["pubdate"]).strftime("%Y-%m-%d")
+    return rows
+
+
+def space_via_api(client, mid, order, pages):
+    """space 投稿接口。2026-10 实测大概率 -403 风控（服务端要页面 JS 下发的
+    风控令牌，连 yt-dlp 都 412）——失败抛 SystemExit，调用方降级。"""
     rows = []
-    for page in range(1, max(1, args.pages) + 1):
+    for page in range(1, max(1, pages) + 1):
         data = client.api(
             "https://api.bilibili.com/x/space/wbi/arc/search",
             {"mid": mid, "pn": page, "ps": 30, "order": order}, wbi=True) or {}
@@ -488,10 +498,55 @@ def cmd_space(client, args):
         total = (data.get("page") or {}).get("count", 0)
         if page * 30 >= total or not vlist:
             break
-    if not rows:
-        print("该 UP 没拉到投稿（接口要求小号登录，跑 login 后重试）")
-        return
-    print(f"## UP（mid={mid}）投稿 {len(rows)} 条（按 {order} 排）\n")
+    return rows
+
+
+def space_via_search(client, mid, pages):
+    """space 接口被风控时的降级：card 换 UP 名 → 搜索召回该 UP 稿件按播放排。
+    召回不全（搜索只收热门/相关度高的），够"挑对标爆款"用，不够当全量列表。"""
+    card = client._raw_json("https://api.bilibili.com/x/web-interface/card", {"mid": mid})
+    if card.get("code") != 0:
+        die(f"card 接口失败 code={card.get('code')}（mid={mid}）")
+    data = card.get("data") or {}
+    name = (data.get("card") or {}).get("name")
+    fans = data.get("follower")
+    if not name:
+        die(f"mid={mid} 查不到 UP 名")
+    rows = []
+    for page in range(1, max(2, pages) + 1):  # 搜索召回默认翻 2 页补召回
+        d = client.api("https://api.bilibili.com/x/web-interface/wbi/search/type",
+                       {"search_type": "video", "keyword": name, "page": page}, wbi=True)
+        rows += [r for r in parse_search_result(d) if str(r.get("mid")) == str(mid)]
+        if not rows:
+            break
+    rows.sort(key=lambda r: -(r.get("play") or 0))
+    return name, fans, fmt_search_rows(rows)
+
+
+def cmd_space(client, args):
+    """UP 投稿列表：space 接口优先（需小号），被风控自动降级搜索召回。"""
+    mid = resolve_mid(args.target)
+    if not mid:
+        die("space 参数要 mid（纯数字）或 space.bilibili.com 链接")
+    order = {"pubdate": "pubdate", "click": "click", "stow": "stow"}.get(args.order, "pubdate")
+    try:
+        rows = space_via_api(client, mid, order, args.pages)
+    except SystemExit:
+        rows = None
+    if rows is not None:
+        if not rows:
+            print("该 UP 没拉到投稿（接口要求小号登录，跑 login 后重试）")
+            return
+        print(f"## UP（mid={mid}）投稿 {len(rows)} 条（按 {order} 排）\n")
+    else:
+        name, fans, rows = space_via_search(client, mid, args.pages)
+        if not rows:
+            print(f"UP「{name}」（粉丝 {fans}）：space 投稿接口被 B站风控拦截"
+                  "（2026-10 实测连 yt-dlp 都过不去），搜索也召回不到其稿件——"
+                  "请从该 UP 主页手动挑 2-3 条高播放视频，直接把视频链接发给我")
+            return
+        print(f"## UP「{name}」（粉丝 {fans}）热门稿 {len(rows)} 条"
+              "（space 接口被风控，此为搜索召回的近似列表，不全）\n")
     print_rows(rows, [("BV", "bvid"), ("标题", "title"), ("播放", "play"),
                       ("藏", "favorite"), ("评", "review"), ("时长", "duration"),
                       ("发布", "pubdate")], args.json)
@@ -659,14 +714,17 @@ def cmd_fetch(client, cfg, cfg_path, args):
                   " 或 python -m pip install yt-dlp，或把 yt-dlp.exe 放进 PATH", file=sys.stderr)
         else:
             cookie_file = resolve_cookiefile(cfg, out_dir)
-            height = 1080 if cookie_file else 480
+            # 拆解看手法 720p 够用（花字/字幕/素材比例都看得清），1080p 体积大一个
+            # 量级且实测易断流；匿名只能 480p
+            height = 720 if cookie_file else 480
             cmd = ytdlp + [
                 "-f", f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[height<={height}][ext=mp4]/bv*+ba/b",
                 "--merge-output-format", "mp4",
                 "-o", str(out_dir / "视频.%(ext)s"),
                 "--write-thumbnail", "--no-playlist",
-                "--socket-timeout", "30", "--retries", "3", "--newline",
-                "--no-warnings",
+                "--socket-timeout", "60", "--retries", "10",
+                "--fragment-retries", "10", "-N", "3",
+                "--newline", "--no-warnings",
                 f"https://www.bilibili.com/video/{bvid}",
             ]
             if cookie_file:
@@ -678,8 +736,9 @@ def cmd_fetch(client, cfg, cfg_path, args):
             proc = subprocess.run(cmd, capture_output=True, text=True,
                                   encoding="utf-8", errors="replace")
             if proc.returncode == 0:
-                hits = sorted(out_dir.glob("视频.*"))
-                hits = [h for h in hits if h.suffix != ".part"]
+                # 合并产物可能是 视频.mp4（常见）或 视频.<格式id>.mp4（单流直下），优先前者
+                hits = sorted(out_dir.glob("视频.mp4")) or \
+                    [h for h in sorted(out_dir.glob("视频.*")) if h.suffix != ".part"]
                 got_video = hits[0] if hits else None
                 print(f"[fetch] 视频 → {got_video}" if got_video
                       else "[fetch] yt-dlp 返回 0 但没找到视频文件，检查下载目录", file=sys.stderr)
