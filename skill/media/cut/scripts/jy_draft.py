@@ -159,6 +159,28 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
         spans = subtract_intervals(spans, silences, keep=0, min_cut=0.5) # 静音边界是 ffmpeg 实测能量，无需回退——keep 回退会把每段尾部多咬 0.2s（实测 03 段末字「取」尾音被削，2026-09-20）
         print(f"[jy_draft] {video.name}: 静音细剪 {n_coarse} → {len(spans)} 段")
 
+    # 标注（源时间轴）先建好：变速/成段前用它们把标注句独立成段——
+    # 模仿剪映"智能剪口播"：精剪者选中标注段整段删除即删音，不用在长段里抠
+    anno = make_annotations(entries)  # 叠词类标注（源时间轴）
+    anno.extend(anno_extra)           # 初选人工提示（语义重复/逻辑混乱，含摘句定位）
+    for h in retake_holes:
+        anno.append((h["start"] / 1000, h["start"] / 1000 + 0.1,
+                     f"🔁重录对已保B删A B:{h.get('retake_of', '')[:16]}"))
+
+    # 标注句边界切段：跨度 ≥0.5s 的标注，凡其起止落在某段内部就在该处切开，
+    # 让每条疑似重复/待判断句单独成段（⚠标注跟着这段走）
+    split_pts = sorted({round(t, 3) for a, b, _ in anno if b - a >= 0.5
+                        for t in (a + 0.1, b - 0.1)})
+    if split_pts:
+        new_spans = []
+        for s, e in spans:
+            pts = [t for t in split_pts if s + 0.4 < t < e - 0.4]
+            bounds = [s] + pts + [e]
+            new_spans.extend(zip(bounds, bounds[1:]))
+        if len(new_spans) != len(spans):
+            print(f"[jy_draft] {video.name}: 标注句独立成段 {len(spans)} → {len(new_spans)} 段")
+        spans = new_spans
+
     # 分段变速：有字幕覆盖的区间=解说段(narr_speed)，纯操作/等待区间=gap_speed
     # （对齐人工成片的加速节奏；剪映里每段速度仍可手调）
     spans_sp = []
@@ -169,16 +191,11 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
         spans_sp.append((s, e, args.narr_speed if covered else args.gap_speed))
     spans = spans_sp
 
-    # 字幕/标注 rebase 到本段成片时间轴（调用方再加段偏移）
+    # 字幕/标注 rebase 到本段成片时间轴（调用方再加段偏移）；anno 已在前文建好
     with tempfile.TemporaryDirectory() as td:
         sub = Path(td) / "sub.srt"
         n_sub = rebase_srt(entries, spans, sub)
         sub_entries = parse_srt(str(sub)) if n_sub else []
-        anno = make_annotations(entries)  # 叠词类标注（源时间轴）
-        anno.extend(anno_extra)           # 初选人工提示（语义重复/逻辑混乱）
-        for h in retake_holes:
-            anno.append((h["start"] / 1000, h["start"] / 1000 + 0.1,
-                         f"🔁重录对已保B删A B:{h.get('retake_of', '')[:16]}"))
         anno_entries = []
         if anno:
             ann = Path(td) / "anno.srt"

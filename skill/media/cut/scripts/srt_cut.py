@@ -132,11 +132,16 @@ def wrap_zh(text, width=16):
     tokens = re.findall(r"[A-Za-z0-9]+|\s+|[^\sA-Za-z0-9]+", text)
     lines, cur, w = [], [], 0.0
     for tok in tokens:
+        if not tok.strip():
+            tok = " "  # 换行/连续空白归一成单个空格，防断行落在空白上产出空行（srt 解析器会炸）
+        if not cur and tok == " ":
+            continue  # 行首不吃空白
         tw = len(tok) * (0.5 if tok.isascii() else 1)
         if cur and w + tw > width:
             while cur and not cur[-1].strip():
                 cur.pop()  # 行尾不留空白
-            lines.append("".join(cur))
+            if cur:
+                lines.append("".join(cur))
             cur, w = [], 0.0
         cur.append(tok)
         w += tw

@@ -132,6 +132,35 @@ def scan_srt(path: Path):
             print(f"  组（保最后 #{last[0]}）: " +
                   " | ".join(f"#{norm[i][0]}「{norm[i][3][:18]}」" for i in g))
 
+    # 跨段远重复：间隔 >120s 的意思重复（初选窗口抓不到的"隔了几分钟又讲一遍"）。
+    # 阈值比近窗更严（相似度≥0.65 且双方都 ≥12 字），宁漏勿误——远重复删除风险高
+    far = []
+    for j in range(len(norm)):
+        _, tj, nb, tb = norm[j]
+        if len(nb) < 12:
+            continue
+        for i in range(j):
+            _, ti, na, ta = norm[i]
+            if not na or len(na) < 12:
+                continue
+            if abs(to_sec(tj) - to_sec(ti)) <= 120:
+                continue
+            sm = SequenceMatcher(None, na, nb)
+            if sm.ratio() >= 0.65 or \
+                    sm.find_longest_match(0, len(na), 0, len(nb)).size / max(len(na), 1) >= 0.7:
+                far.append((i, j, round(max(sm.ratio(),
+                            sm.find_longest_match(0, len(na), 0, len(nb)).size / max(len(na), 1)), 2)))
+    seen = set()
+    if far:
+        print("\n-- 跨段疑似重复（间隔>2min，近窗抓不到的；删除风险高，标注给精剪判断）--")
+        for i, j, sim in far:
+            key = frozenset((norm[i][0], norm[j][0]))
+            if key in seen:
+                continue
+            seen.add(key)
+            print(f"  #{norm[i][0]}[{norm[i][1]}]「{norm[i][3][:18]}」 ↔ "
+                  f"#{norm[j][0]}[{norm[j][1]}]「{norm[j][3][:18]}」 sim={sim}")
+
     # 口头禅统计：下一轮转录 --strip-filler 该不该加料
     from collections import Counter
     starts = Counter()
@@ -261,8 +290,10 @@ def run_decide(decide_path: Path, dry: bool, log_dir: Path | None):
             start = min(_sec(t["time"].split(" --> ")[0]) for t in texts) - 0.2
             end = max(_sec(t["time"].split(" --> ")[1]) for t in texts) + 0.2
             note = a.get("note", "请精剪注意")
+            # 注意：剪切稿已重编号，原稿 #id 对精剪者无意义——标注用摘句定位，
+            # 且 jy_draft 会把标注句独立成段，选中即可整段删
             annotations.append({"start": round(start, 3), "end": round(end, 3),
-                                "note": f"⚠{note}：{texts[0]['text'][:14]}"})
+                                "note": f"⚠{note}｜句子:「{texts[0]['text'][:20]}」"})
         if annotations:
             log["annotated"][name] = annotations
         print(f"[{name}] {len(entries)} 条 → 剪切稿 {len(kept)} 条"
