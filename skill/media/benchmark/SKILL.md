@@ -19,13 +19,19 @@ description: media 子技能：找对标与拆解模仿（B站）。由 media �
 | 步 | 动作 | 要点 |
 |---|---|---|
 | 0 输入 | 问清三件事：赛道关键词？已有对标 UP？还是单条视频链接？ | 三种入口对应不同起步命令 |
-| 1 找 | `python scripts/bili_bench.py search "关键词" --limit 20`；有 UP 就 `space <mid|主页URL>` | 挑选标准见下节；候选给用户拍板 |
+| 1 找 | `python scripts/bili_bench.py search "关键词" --limit 20`；有 UP 就列其投稿（见下"space 列表三条路"） | 挑选标准见下节；候选给用户拍板 |
 | 2 拉 | `python scripts/bili_bench.py fetch BVxx` | 详情+封面+视频+AI字幕逐字稿一条龙；`--no-video` 只要文字材料 |
 | 3 补 | `python scripts/bili_bench.py comments BVxx --n 30` | 高赞评论 = 观众在要什么，拆解必看 |
 | 4 拆 | 读逐字稿+看视频，照 `templates/对标拆解模板.md` 写笔记 | 落 `<benchmarks>/<UP主名>/BVxx_标题.md` |
 | 5 用 | 可模仿要素确认后写回 | 选题池/`planning_ref`/复盘"对标校准"，全走确认制 |
 
 无 AI 字幕的稿子（脚本会提示）：下载的视频直接进 cut 的转录——`python <media>/cut/scripts/asr_funasr.py <视频路径>`，SRT 落同目录改名 `逐字稿.srt` 再拆。
+
+## space 列表三条路（按顺序试）
+
+1. **脚本** `bili_bench.py space <mid|主页URL>`：space API 2026-10 起被服务端风控（-403，要页面 JS 下发的风控令牌），脚本会自动降级为 card 换 UP 名 → 搜索召回热门稿（近似列表，不全）
+2. **浏览器读全量列表（实测最优）**：用 control-browser 技能开 `https://space.bilibili.com/<mid>/video`，点「最多播放」标签后 `domSnapshot()` 直接读全部投稿——标题/播放/时长/发布日期/BV 号全在快照里。**匿名可用**（登录弹窗关掉即可，不耗小号登录态），2026-10 实测 29 条投稿一条不落
+3. 都不行 → 让用户从 UP 主页贴 2-3 条爆款视频链接
 
 ## 挑对标的判断标准（步骤 1 的筛选依据）
 
@@ -53,7 +59,7 @@ description: media 子技能：找对标与拆解模仿（B站）。由 media �
 | 情况 | 动作 |
 |---|---|
 | HTTP 412 / code -352 | 风控。等几分钟再试；反复出现跑 login 上小号态、或换网络；**别缩短 RATE 限速硬刚** |
-| space 报 -403 | 2026-10 实测：space 投稿接口被 B站风控挡死（要页面 JS 下发的风控令牌，连 yt-dlp 都 412），脚本会自动降级为"card 换 UP 名 → 搜索召回热门稿"的近似列表；召回不全时让用户从该 UP 主页手动贴 2-3 条爆款链接 |
+| space 报 -403 | space 投稿接口被 B站风控（2026-10 实测连 yt-dlp 都 412）：脚本已自动降级为搜索召回；要全量列表走上面的浏览器路线（实测最优） |
 | `space`/`subs` 报缺 bench_sessdata | 跑 `login` 扫码（小号） |
 | 无 AI 字幕 | 视频走 cut 转录（asr_funasr.py）；纯画面无口述的对标没有逐字稿，拆结构靠看片标注时间轴 |
 | yt-dlp 下载失败 | 看脚本尾部 stderr（尾部 800 字符）；412 类换时段，版权/地区类放弃换对标 |

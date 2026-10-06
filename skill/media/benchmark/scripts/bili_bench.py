@@ -543,10 +543,12 @@ def cmd_space(client, args):
         if not rows:
             print(f"UP「{name}」（粉丝 {fans}）：space 投稿接口被 B站风控拦截"
                   "（2026-10 实测连 yt-dlp 都过不去），搜索也召回不到其稿件——"
-                  "请从该 UP 主页手动挑 2-3 条高播放视频，直接把视频链接发给我")
+                  "用浏览器打开 space.bilibili.com/<mid>/video 读全量列表"
+                  "（见 benchmark/SKILL.md 浏览器路线），或让用户直接贴视频链接")
             return
         print(f"## UP「{name}」（粉丝 {fans}）热门稿 {len(rows)} 条"
-              "（space 接口被风控，此为搜索召回的近似列表，不全）\n")
+              "（space 接口被风控，此为搜索召回的近似列表，不全——"
+              "全量列表用浏览器开 space.bilibili.com/<mid>/video 读，见 benchmark/SKILL.md）\n")
     print_rows(rows, [("BV", "bvid"), ("标题", "title"), ("播放", "play"),
                       ("藏", "favorite"), ("评", "review"), ("时长", "duration"),
                       ("发布", "pubdate")], args.json)
