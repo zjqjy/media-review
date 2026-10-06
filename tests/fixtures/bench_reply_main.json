@@ -1,0 +1,6 @@
+{
+  "replies": [
+    {"like": 502, "rcount": 0, "member": {"uname": "高赞用户"}, "content": {"message": "内容换行\n应被替换"}},
+    {"like": 178, "rcount": 3, "member": {"uname": "第二条用户"}, "content": {"message": "短评论"}}
+  ]
+}

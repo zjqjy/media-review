@@ -1,0 +1,5 @@
+[
+  {"type": "video", "bvid": "BV1hS4y1N7Gs", "title": "<em class=\"keyword\">剪映教程</em> 入门到精通", "author": "测试UP主", "mid": 477756368, "play": 5419312, "favorites": 198973, "review": 408, "duration": "12:34", "pubdate": 1648176000, "description": "测试描述"},
+  {"type": "live", "title": "直播间：剪映教学", "author": "直播UP", "play": 999},
+  {"type": "video", "bvid": "BV1GJ411x7h7", "title": "第二条视频", "author": "测试UP主", "mid": 477756368, "play": 42, "favorites": 1, "review": 0, "duration": "03:00", "pubdate": 1650000000, "description": ""}
+]

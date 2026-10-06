@@ -26,6 +26,14 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[..] 安装 qrcode..."
     python -m pip install qrcode
 }
+# media-benchmark 对标子技能：yt-dlp 负责下载对标视频（能找到即可，不强制安装方式）
+yt-dlp --version 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] 未找到 yt-dlp——benchmark 的视频下载不可用（搜索/详情/评论不受影响）" -ForegroundColor Yellow
+    Write-Host "       装法任选：winget install yt-dlp ／ python -m pip install yt-dlp ／ 官网 exe 放进 PATH"
+} else {
+    Write-Host "[OK] yt-dlp $(yt-dlp --version 2>$null)（benchmark 可用）"
+}
 # media-cut 的 silence_trim 需要 ffmpeg：PATH 或 imageio_ffmpeg 自带二进制（脚本自动发现两者）
 ffmpeg -version 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {

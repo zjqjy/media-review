@@ -1,5 +1,6 @@
 {
-  "sessdata": "把B站网页F12→Application→Cookies→bilibili.com→SESSDATA的值粘到这里",
+  "sessdata": "把B站网页F12→Application→Cookies→bilibili.com→SESSDATA的值粘到这里（大号，review 取数用）",
+  "bench_sessdata": "对标小号的 SESSDATA（跑 bili_bench.py login 扫码自动写入；留空=匿名，搜索/详情/评论可用，space列表/AI字幕/高清下载不可用）",
   "vault_path": "D:/你的知识库根目录（可选，缺省时从本配置文件位置向上推断）",
   "paths": {
     "review": "20_自媒体/复盘",
