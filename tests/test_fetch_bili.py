@@ -101,5 +101,23 @@ class TestConvertRates(unittest.TestCase):
         self.assertEqual(fb.convert_rates([]), [])
 
 
+class TestDefaultOutName(unittest.TestCase):
+    TODAY = date(2026, 10, 7)
+
+    def test_retention带bvid防覆盖(self):
+        self.assertEqual(fb.default_out_name("retention", "BV1tseJ64EYe", self.TODAY),
+                         "retention_20261007_BV1tseJ64EYe.json")
+
+    def test_其他命令不带后缀(self):
+        self.assertEqual(fb.default_out_name("diagnose", None, self.TODAY),
+                         "diagnose_20261007.json")
+        self.assertEqual(fb.default_out_name("overview", "BVx", self.TODAY),
+                         "overview_20261007.json")
+
+    def test_retention缺bvid退回命令名(self):
+        self.assertEqual(fb.default_out_name("retention", None, self.TODAY),
+                         "retention_20261007.json")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -355,6 +355,16 @@ def cmd_login(cfg_path, cfg):
 
 # ---------------------------------------------------------------- 输出
 
+def default_out_name(command, bvid=None, today=None):
+    """默认输出名：<命令>_YYYYMMDD.json。retention 逐条拉取，名字追加快照对象
+    bvid，否则同日跑多条互相覆盖（2026-10-07 实测 4 条只剩最后一条）。"""
+    today = today or date.today()
+    name = f"{command}_{today:%Y%m%d}"
+    if command == "retention" and bvid:
+        name += f"_{bvid}"
+    return name + ".json"
+
+
 def emit(payload, out, data_dir, dry=False):
     """写 JSON：--out - 打 stdout，否则写 data_dir/<out>.json。"""
     text = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -374,7 +384,8 @@ def main():
     ap = argparse.ArgumentParser(description="B站创作中心数据拉取（仅自己账号）")
     ap.add_argument("command", choices=["list", "diagnose", "overview", "playsource", "retention", "login"])
     ap.add_argument("--config", help="_config_local.json 路径")
-    ap.add_argument("--out", default=None, help="输出文件名（默认 <命令>_YYYYMMDD.json，- 为 stdout）")
+    ap.add_argument("--out", default=None,
+                    help="输出文件名（默认 <命令>_YYYYMMDD.json，retention 另附 bvid；- 为 stdout）")
     ap.add_argument("--size", type=int, default=50, help="diagnose 拉最近 N 条（默认 50）")
     ap.add_argument("--bvid", help="retention：稿件 BV 号")
     ap.add_argument("--cid", type=int, default=None, help="retention：分P cid（缺省取第一分P）")
@@ -413,7 +424,7 @@ def main():
     cfg = load_config(cfg_path)
     review_dir = (cfg.get("paths") or {}).get("review", "20_自媒体/复盘")
     data_dir = vault_root(cfg, cfg_path) / review_dir / "_data"
-    out = args.out or f"{args.command}_{date.today():%Y%m%d}.json"
+    out = args.out or default_out_name(args.command, args.bvid)
 
     if args.command == "list":
         archives = backfill_pubtime(fetch_all_archives(cfg["sessdata"]), cfg["sessdata"], args.size)
