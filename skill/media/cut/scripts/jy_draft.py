@@ -157,7 +157,9 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
     if args.min_inner > 0:
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
         spans = subtract_intervals(spans, silences, keep=0, min_cut=0.5) # 静音边界是 ffmpeg 实测能量，无需回退——keep 回退会把每段尾部多咬 0.2s（实测 03 段末字「取」尾音被削，2026-09-20）
-        print(f"[jy_draft] {video.name}: 静音细剪 {n_coarse} → {len(spans)} 段")
+        print(f"[jy_draft] {video.name}: 无人声细剪（"
+              f"{'VAD智能' if args.db is None else f'{args.db}dB能量'}）"
+              f"{n_coarse} → {len(spans)} 段")
 
     # 标注（源时间轴）先建好：变速/成段前用它们把标注句独立成段——
     # 模仿剪映"智能剪口播"：精剪者选中标注段整段删除即删音，不用在长段里抠
@@ -326,7 +328,9 @@ def main():
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭细剪")
-    ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
+    ap.add_argument("--db", type=float, default=None,
+                    help="无人声判定阈值 dB；缺省智能模式（FSMN-VAD 人声检测），"
+                         "给定数值则纯能量模式")
     ap.add_argument("--cuts", default=None, help="口头禅洞 .cuts.json（单段模式）")
     ap.add_argument("--no-cuts", action="store_true", help="不做词级跳剪")
     ap.add_argument("--no-sub", action="store_true",

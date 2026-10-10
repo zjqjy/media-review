@@ -66,7 +66,7 @@ def cut_to_source_map(ws: Path, seg: str):
     cuts_path = find_cuts_json(video, cut_srt)
     if cuts_path:
         spans = subtract_intervals(spans, load_cuts(cuts_path), pre_roll=0.3, keep=0.1)
-    silences, _ = detect_silences(str(video), -35, 0.8)
+    silences, _ = detect_silences(str(video), None, 0.8)  # 与 srt_cut 同款智能模式，成片区间映射才对得上
     spans = subtract_intervals(spans, silences, keep=0.2, min_cut=0.5)
     out, acc = [], 0.0
     for s, e in spans:

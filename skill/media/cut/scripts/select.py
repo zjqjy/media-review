@@ -132,6 +132,24 @@ def scan_srt(path: Path):
             print(f"  组（保最后 #{last[0]}）: " +
                   " | ".join(f"#{norm[i][0]}「{norm[i][3][:18]}」" for i in g))
 
+    # 拉伸条目候选：文本密度远低于正常语速（3-5字/秒）→ VAD 把长噪声并进了条目
+    # （实测 R02 #27：7.5min 条目只有 10 字）。智能细剪会挖掉条目里的噪声段，但
+    # 文本在区间内的真实位置不可靠——保留时建议加 annotate 提示精剪对位
+    def disp_len(s):
+        return sum(0.5 if c.isascii() else 1 for c in s)
+
+    stretch = []
+    for e in entries:
+        a, b = [to_sec(t.strip()[:8]) for t in e["time"].split("-->")]
+        rate = disp_len(e["text"]) / max(b - a, 0.1)
+        if b - a >= 8 and rate < 1.5:
+            stretch.append((e["idx"], b - a, len(e["text"]), rate))
+    if stretch:
+        print("\n-- 拉伸条目候选（条目区间被噪声撑大，文本对位不可信；"
+              "保留则建议 annotate 提示精剪）--")
+        for idx, d, n, rate in stretch:
+            print(f"  #{idx} 跨 {d:.0f}s 仅 {n} 字（{rate:.1f}字/秒）")
+
     # 跨段远重复：间隔 >120s 的意思重复（初选窗口抓不到的"隔了几分钟又讲一遍"）。
     # 阈值比近窗更严（相似度≥0.65 且双方都 ≥12 字），宁漏勿误——远重复删除风险高
     far = []

@@ -16,7 +16,9 @@
   --pad 0.2       每个保留段两头各扩 N 秒，防切字
   --gap 0.4       相邻保留行间隔小于 N 秒就并成一段，避免碎片化微剪
   --min-inner 0.8 区间内静音细剪阈值（秒），0=关闭（与 jy_draft 同款，成片节奏一致）
-  --db -35        静音判定阈值
+  --db            无人声判定：缺省智能模式（FSMN-VAD 人声岛补集，底噪/系统音不算
+                  人声，实测 R02 底噪素材 2min 噪声洞全消）；给定数值（如 -35）回退
+                  纯能量模式
   --out-dir DIR   输出目录（缺省输出到素材旁）
 """
 
@@ -232,7 +234,8 @@ def process_one(video: Path, srt_path: Path, args):
     if args.min_inner > 0:
         silences, _ = detect_silences(str(video), args.db, args.min_inner)
         spans = subtract_intervals(spans, silences, keep=0, min_cut=0.5) # 静音边界是 ffmpeg 实测能量，无需回退——keep 回退会把每段尾部多咬 0.2s（实测 03 段末字「取」尾音被削，2026-09-20）
-        print(f"[srt_cut] {video.name} 静音细剪 → {len(spans)} 段")
+        print(f"[srt_cut] {video.name} 无人声细剪（"
+              f"{'VAD智能' if args.db is None else f'{args.db}dB能量'}）→ {len(spans)} 段")
 
     out = (args.out_dir / f"{video.stem}_粗剪{video.suffix}") if args.out_dir \
         else video.with_name(f"{video.stem}_粗剪{video.suffix}")
@@ -277,7 +280,9 @@ def main():
     ap.add_argument("--gap", type=float, default=0.4)
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭")
-    ap.add_argument("--db", type=float, default=-35, help="静音判定阈值 dB")
+    ap.add_argument("--db", type=float, default=None,
+                    help="无人声判定阈值 dB；缺省智能模式（FSMN-VAD 人声检测），"
+                         "给定数值则纯能量模式")
     ap.add_argument("--audio-only", action="store_true",
                     help="只出音频（.m4a，几十秒级）——QA 复核/快速听稿用，不编码视频")
     args = ap.parse_args()
