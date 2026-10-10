@@ -35,6 +35,18 @@ SUB_WRAP = 20         # 断行宽度：行数更少、底板更薄
 SUB_BOTTOM_Y = -0.86  # 末行锚点：无论几行，最底一行都贴在这个高度
 SUB_LINE_UNIT = 0.05  # 每多一行，文本框中心上移量（块向上生长，不压内容）
 
+# 剪映时间线只认 30/60fps——pyJianYingDraft 不校验，超出值剪映打开时把总帧数
+# 按 30fps 重解，时间线整条撑长（实测 120fps：464s 成片显示 30:56，恰好 4 倍），
+# 缩放等轨道交互全烂。高帧率素材不受影响：素材按原速播放，时间线照用 30/60。
+JY_SUPPORTED_FPS = (30, 60)
+
+
+def normalize_fps(fps):
+    """任意 fps 收敛到剪映支持的 30/60，返回 (fps, 是否被改)。"""
+    if fps in JY_SUPPORTED_FPS:
+        return fps, False
+    return min(JY_SUPPORTED_FPS, key=lambda v: (abs(v - fps), v)), True
+
 # root_meta_info.json 登记条目的全字段模板（自剪映 11.x 已注册条目解剖）
 DEFAULT_ENTRY = {
     "cloud_draft_cover": False, "cloud_draft_sync": False,
@@ -325,7 +337,8 @@ def main():
     ap.add_argument("--name", default=None)
     ap.add_argument("--pad", type=float, default=0.2)
     ap.add_argument("--gap", type=float, default=0.4)
-    ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--fps", type=int, default=30,
+                    help="时间线帧率，剪映只认 30/60；高帧率素材按原速播，不用跟素材走")
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭细剪")
     ap.add_argument("--db", type=float, default=None,
@@ -404,8 +417,12 @@ def main():
                   f"（确认放弃旧内容才用 --force 原地覆盖）")
 
     probe = VideoMaterial(str(first_video))
+    fps, coerced = normalize_fps(args.fps)
+    if coerced:
+        print(f"[jy_draft] 时间线 fps {args.fps} 剪映不支持（只认 30/60）——改用 {fps}；"
+              f"高帧率素材按原速播放，不受影响")
     script = DraftFolder(str(folder)).create_draft(
-        name, probe.width, probe.height, fps=args.fps, allow_replace=True)
+        name, probe.width, probe.height, fps=fps, allow_replace=True)
     script.append_track(TrackSpec(TrackType.video, name="主轨"))
 
     t_us = 0

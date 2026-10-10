@@ -6,7 +6,8 @@
 
 成片**整段**上主轨（不剪不挖洞——那是 cut 的活），字幕轨按 srt 建好，
 样式与 cut 粗剪草稿一致（白字黑描边黑底板、末行锚底）。草稿防覆盖与
-登记逻辑复用 jy_draft。
+登记逻辑复用 jy_draft。时间线 fps 只认 30/60（剪映限制，脚本自动收敛），
+高帧率素材也传 30——素材按原速播放，不受影响。
 """
 
 import argparse
@@ -20,8 +21,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(CUT_SCRIPTS))
 from srt_cut import parse_srt, wrap_zh  # noqa: E402
 from jy_draft import (SUB_BOTTOM_Y, SUB_LINE_UNIT, SUB_SIZE, SUB_WRAP,
-                      draft_touched_by_user, register_in_root_meta,
-                      resolve_draft_root, retire_draft)
+                      draft_touched_by_user, normalize_fps,
+                      register_in_root_meta, resolve_draft_root, retire_draft)
 
 
 def jianying_running():
@@ -42,7 +43,8 @@ def main():
     ap.add_argument("--retire", default=None, metavar="粗剪草稿名",
                     help="生成定稿草稿后把粗剪草稿标记移除（进剪映回收站可恢复）"
                          "——草稿列表不堆积，一期一份活草稿")
-    ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--fps", type=int, default=30,
+                    help="时间线帧率，剪映只认 30/60；高帧率素材也传 30")
     args = ap.parse_args()
 
     video = Path(args.video)
@@ -91,8 +93,12 @@ def main():
         print(f"[draft_sub] {base} 已被改过——不覆盖，落到 {name}")
 
     material = VideoMaterial(str(video))
+    fps, coerced = normalize_fps(args.fps)
+    if coerced:
+        print(f"[draft_sub] 时间线 fps {args.fps} 剪映不支持（只认 30/60）——改用 {fps}；"
+              f"高帧率素材按原速播放，不受影响")
     script = DraftFolder(str(folder)).create_draft(
-        name, material.width, material.height, fps=args.fps, allow_replace=True)
+        name, material.width, material.height, fps=fps, allow_replace=True)
     script.append_track(TrackSpec(TrackType.video, name="主轨"))
     seg = VideoSegment(material, target_timerange=Timerange(0, material.duration))
     script.add_segment(seg, track="主轨")
