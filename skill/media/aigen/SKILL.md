@@ -31,7 +31,17 @@ description: media 子技能：AI 生图素材（火山方舟 Seedream 按量付
 | 2 | 要烤进图的文字 | 按官方指南放**双引号**（如：图片下方一行大字："都2026年了！"，白色粗体黑描边）——Seedream 中文文字渲染是国内最强，表情包的梗短句直接烤进图 |
 | 3 | 去底（可选） | `python scripts/debg.py <文件或目录...>` 洪泛填充抠背景（从边缘清连通同色区，保留描边），透明底落卡片色/工程底色 |
 | 4 | 接工程 | 图片落目标工程 `public/`；Remotion 贴纸工程（本仓 skill 外的目标工程）在贴纸条目加 `src: '文件名.png'` 即上屏，`npm run render:preview` 验收 |
-| 5 | 渲染注意 | Remotion 渲染遵循其工程规范（无头浏览器走本地 Edge、日志禁 tail 管道） |
+| 5 | 渲染注意 | **浏览器永不幸网下载**（脚本层已修，细则见下方「Remotion 渲染环境铁律」）；日志禁 tail 管道 |
+
+## Remotion 渲染环境铁律（2026-10-17 修，脚本层已改）
+
+本机到 npm registry / storage.googleapis.com 的网络路径极慢或不可达——**任何在线解析/下载都会挂几十分钟，表现为反复"超时"**。
+
+1. **无头浏览器永不幸网下载**：vibe-motion 工程的 `scripts/remotion-browser-executable.mjs` 已改为四级解析——`REMOTION_BROWSER_EXECUTABLE` 环境变量 → 版本化缓存 `~/Library/Caches/com.zjucat.create-vive-motion/remotion/chrome-headless-shell/remotion-<版本>/win64/chrome-headless-shell-win64/` → 抢救缓存根目录旧布局浏览器自动搬入版本化路径 → 本地 Edge/Chrome 兜底。日志若出现 "Downloading Chrome Headless Shell"，说明四级全落空，**立即停手别等**：手动把本地浏览器 exe 放进版本化路径（Remotion 4.0.438 要 144.0.7559.20，本机缓存里有），或设 `REMOTION_BROWSER_EXECUTABLE` 指向 Edge/Chrome
+2. **死锁**：进程被杀留下 `chrome-headless-shell/.install.lock`，阻塞 30 分钟（日志反复刷 "Waiting for lock release"）——直接删锁目录重跑
+3. **依赖**：vibe-motion 顶层 pnpm 链接损坏（文件夹被压缩移动过）时用 `CI=true pnpm install --offline --prefer-offline`，**绝不能裸跑 pnpm install**
+4. **h264 直出**：渲染脚本已修，非 prores 编解码不传 `--prores-profile`；用 `REMOTION_CODEC=h264 REMOTION_PIXEL_FORMAT=yuv420p REMOTION_IMAGE_FORMAT=jpeg REMOTION_SCALE=1`
+5. **日志**：`> out/render.log 2>&1` 重定向到文件再轮询，禁 tail 管道
 
 ## 提示词规范（官方指南浓缩，全文件夹 `seedream-prompt-guide` 链接见文末）
 
