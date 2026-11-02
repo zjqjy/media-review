@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>draft · 审阅工作台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header id="top">
+  <span class="logo">📝 draft</span>
+  <input id="pathInput" list="recentList" placeholder="md 文件绝对路径（如 D:\...\outline.md），回车打开" spellcheck="false">
+  <datalist id="recentList"></datalist>
+  <button id="btnOpen">打开</button>
+  <button id="btnBrowse">浏览…</button>
+  <button id="btnSave" class="primary" disabled>保存 (Ctrl+S)</button>
+  <button id="btnAI" disabled>✨ 复制给 AI</button>
+  <span id="status"></span>
+</header>
+
+<div id="main">
+  <div id="docwrap">
+    <div id="doc"><div class="empty-tip">输入路径打开一篇 md（AI 初稿大纲/脚本），<br>逐块编辑、选中文字打批注，✨ 一键复制修改清单喂给 AI。</div></div>
+  </div>
+  <aside id="panel">
+    <h3>批注 <span class="cnt" id="cmtCnt"></span><button id="btnResolveAll" title="AI 改完后把全部批注标为已处理">全部已处理</button></h3>
+    <div id="cmtList"><div class="btip">还没有批注</div></div>
+  </aside>
+</div>
+
+<!-- 选中文字浮动条 -->
+<div id="selbar">
+  <button data-act="delete" title="标记删除">删除</button>
+  <button data-act="replace" title="标记替换">替换</button>
+  <button data-act="comment" title="评论意见">评论</button>
+  <button data-act="highlight" title="高亮强调">高亮</button>
+  <input id="selInput" placeholder="输入内容后回车">
+</div>
+
+<!-- 文件浏览 -->
+<div id="overlay"></div>
+<div id="browser">
+  <div class="brow">
+    <input id="dirInput" placeholder="目录路径" spellcheck="false">
+    <button id="btnUp">上级</button>
+    <button id="btnGoDir" class="primary">列出</button>
+    <button id="btnCloseBrowser">关闭</button>
+  </div>
+  <div id="filelist"></div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

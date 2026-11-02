@@ -1,0 +1,8 @@
+{
+  "step": "S1",
+  "feature": "draft-workbench",
+  "stage": "dev-done-e2e-verified",
+  "substep_next": "verify",
+  "updated": "2026-11-03",
+  "e2e": "ego 浏览器全链路：打开/块编辑写回/批注四件套/整块评论/旁车落盘/重开锚定/漂移orphan重锚/AI清单复制 全过"
+}
