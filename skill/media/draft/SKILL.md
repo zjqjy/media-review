@@ -22,7 +22,13 @@ description: media 子技能：大纲/脚本审阅修改工作台。由 media �
 ## 起服务
 
 ```bash
-python scripts/draft_server.py [端口] [--dir 默认浏览目录]
+draft        # PATH 命令（cmd/PowerShell/Git Bash 通吃）——默认浏览 vault 选题池
+```
+
+等价全量写法（`--config` 自动解析 vault 选题池作默认浏览目录，`--dir` 优先）：
+
+```bash
+python scripts/draft_server.py [端口] [--dir 默认浏览目录] [--config _config_local.json路径]
 ```
 
 → 浏览器开 `http://127.0.0.1:8765/`（端口被占自动 +1）。纯标准库零依赖，前端自包含**无 CDN**（环境铁律）。只绑 127.0.0.1。

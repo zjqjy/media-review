@@ -256,7 +256,25 @@ def main():
     ap = argparse.ArgumentParser(description="draft 审阅工作台本地服务")
     ap.add_argument("port", nargs="?", type=int, default=8765)
     ap.add_argument("--dir", default="", help="页面文件浏览器的默认目录")
+    ap.add_argument("--config", default="",
+                    help="_config_local.json 路径——默认浏览目录取 vault 选题池"
+                         "（paths.topics），--dir 给定时优先 --dir")
     args = ap.parse_args()
+
+    default_dir = args.dir
+    if not default_dir and args.config and os.path.isfile(args.config):
+        try:  # 仓库约定：vault 路径只从 _config_local.json 读，不硬编码
+            with open(args.config, "rb") as f:
+                cfg = json.loads(f.read().decode("utf-8"))
+            vp = cfg.get("vault_path", "")
+            topics = cfg.get("paths", {}).get("topics", "")
+            for cand in (os.path.join(vp, topics) if vp and topics else "",
+                         vp):
+                if cand and os.path.isdir(cand):
+                    default_dir = cand
+                    break
+        except Exception as e:  # noqa: BLE001 —— 配置坏了就退回 cwd
+            print(f"[draft] 读 config 失败（忽略）: {e}")
 
     port, server = args.port, None
     for attempt in range(10):
@@ -270,7 +288,7 @@ def main():
         print("[draft] 连续 10 个端口都被占，退出")
         sys.exit(1)
 
-    default_dir = args.dir or os.getcwd()
+    default_dir = default_dir or os.getcwd()
     # 把默认目录传给前端：实例属性 + /api/config 拉取
     DraftHandler.default_dir = default_dir
     print(f"[draft] 审阅工作台: http://127.0.0.1:{port}/")
