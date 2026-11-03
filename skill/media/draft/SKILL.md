@@ -21,17 +21,13 @@ description: media 子技能：大纲/脚本审阅修改工作台。由 media �
 
 ## 起服务
 
-```bash
-draft        # PATH 命令（cmd/PowerShell/Git Bash 通吃）——默认浏览 vault 选题池
-```
-
-等价全量写法（`--config` 自动解析 vault 选题池作默认浏览目录，`--dir` 优先）：
+入口是 media 门面：用户说 `/media draft` /「审稿」/「改稿」→ **AI 来起服务**（后台跑，把网址给用户）：
 
 ```bash
-python scripts/draft_server.py [端口] [--dir 默认浏览目录] [--config _config_local.json路径]
+python scripts/draft_server.py [端口] [--dir 默认浏览目录]
 ```
 
-→ 浏览器开 `http://127.0.0.1:8765/`（端口被占自动 +1）。纯标准库零依赖，前端自包含**无 CDN**（环境铁律）。只绑 127.0.0.1。
+也可以终端直接敲 `draft`（PATH 命令，参数透传）。**源文件在哪里就在哪里**：路径由用户给（初稿 md 通常和项目放一起），不绑定任何知识库目录；没给 `--dir` 就落在当前目录。浏览器开 `http://127.0.0.1:8765/`（端口被占自动 +1）。纯标准库零依赖，前端自包含**无 CDN**（环境铁律），只绑 127.0.0.1。
 
 ## 人工操作（网页）
 
