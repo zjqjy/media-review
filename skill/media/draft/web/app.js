@@ -238,7 +238,7 @@ function buildBlockTools(idx) {
   mk("↑", "上移", () => moveBlock(idx, idx - 1));
   mk("↓", "下移", () => moveBlock(idx, idx + 1));
   mk("✚", "在下方插入空块", () => insertBlockAfter(idx));
-  mk("🗑", "删除此块", () => removeBlock(idx));
+  mk("🗑", "删除此块", () => { if (confirm("删除此块？（可在 📜 历史回滚找回）")) removeBlock(idx); });
   mk("💬", "整块评论", () => { addComment(idx, "comment", { quote: "" }); });
   return bar;
 }

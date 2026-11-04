@@ -1,0 +1,15 @@
+{
+  "discussion_id": "20261105-shoot-pipeline",
+  "created_at": "2026-11-05",
+  "current_phase": 5,
+  "phases": {
+    "split": "completed",
+    "requirements": "completed",
+    "hardware": "skipped (纯软件)",
+    "brainstorm": "completed",
+    "milestones": "completed"
+  },
+  "subsystems": ["呈现方式批注", "素材关联", "剪辑阶段编排", "Agent协作协议"],
+  "current_subsystem": 4,
+  "next": "S2-A 开发，完成后 /em verify s2"
+}
