@@ -76,7 +76,6 @@ button:disabled { opacity: .45; cursor: default; }
 }
 .blk:hover .blktools, .blk:focus-within .blktools { display: flex; }
 .blktools button { border: none; background: none; padding: 2px 7px; font-size: 13px; }
-.drag-handle { cursor: grab; }
 
 /* ---------- 批注标记 ---------- */
 .mk { border-radius: 3px; cursor: pointer; }

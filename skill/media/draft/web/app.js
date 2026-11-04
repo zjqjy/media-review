@@ -215,6 +215,10 @@ function buildBlockEl(b, idx) {
   }
 
   el.appendChild(buildBlockTools(idx));
+  // 块内一律禁拖（含文本拖拽）：触控板微拖把选区拖走曾致空 dataTransfer 走
+  // 进 drop 处理器，+"" === 0 绕过 NaN 守卫，moveBlock(0,…) 直接搬走首块。
+  // 排序改由 ↑↓ 按钮确定性完成，拖拽通道整体关死。
+  el.addEventListener("dragstart", e => e.preventDefault());
   el.addEventListener("click", () => {           // 重锚模式：点块即重锚
     if (S.reanchorCid !== null) doReanchor(idx);
   });
@@ -236,14 +240,6 @@ function buildBlockTools(idx) {
   mk("✚", "在下方插入空块", () => insertBlockAfter(idx));
   mk("🗑", "删除此块", () => removeBlock(idx));
   mk("💬", "整块评论", () => { addComment(idx, "comment", { quote: "" }); });
-  mk("⠿", "拖拽排序（按住我拖，点正文永远是选字）", () => {});
-  const handle = bar.lastChild;
-  handle.classList.add("drag-handle");
-  handle.draggable = true;                     // 拖拽只认手柄：块本身永不可拖，选字绝不会被劫持
-  handle.addEventListener("dragstart", e => {
-    e.dataTransfer.setData("text/plain", String(idx));
-    e.dataTransfer.effectAllowed = "move";
-  });
   return bar;
 }
 
@@ -660,26 +656,6 @@ async function listDir(d) {
     wrap.innerHTML = `<div class="btip">读取失败: ${esc(e.message)}</div>`;
   }
 }
-
-/* ================= 拖拽排序 ================= */
-const docEl = $("#doc");
-docEl.addEventListener("dragover", e => {
-  if (!S.path) return;
-  e.preventDefault();
-});
-docEl.addEventListener("drop", e => {
-  if (!S.path) return;
-  e.preventDefault();
-  const from = +e.dataTransfer.getData("text/plain");
-  const over = e.target.closest(".blk");
-  if (!over || Number.isNaN(from)) return;
-  const els = [...docEl.querySelectorAll(".blk")];
-  let to = els.indexOf(over);
-  const rect = over.getBoundingClientRect();
-  if (e.clientY > rect.top + rect.height / 2) to += 1;
-  if (to > from) to -= 1;                          // 先摘后插的位移修正
-  moveBlock(from, to);
-});
 
 /* ================= 📜 版本历史（快照/行级 diff/回滚） ================= */
 const histModal = $("#histModal");
