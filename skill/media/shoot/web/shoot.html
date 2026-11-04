@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>shoot · 素材关联面板</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header id="top">
+  <span class="logo">🎬 shoot</span>
+  <input id="projInput" placeholder="项目根路径（含定稿 md + shoot.json），回车打开" spellcheck="false">
+  <button id="btnOpen" class="primary">打开</button>
+  <button id="btnMissing">缺拍清单</button>
+  <span id="status"></span>
+</header>
+
+<div id="main">
+  <aside id="left">
+    <h3>呈现批注 <span class="cnt" id="annCnt"></span></h3>
+    <div id="annList"><div class="btip">先在顶部输入项目根打开</div></div>
+  </aside>
+  <section id="right">
+    <div id="batchbar">
+      <label><input type="checkbox" id="chkAll"> 全选（当前筛选内）</label>
+      <span id="chkCnt" class="cnt"></span>
+      <span class="spacer"></span>
+      <button id="btnConfirm" class="primary" title="把勾选素材全部置为「选用」——高置信（filename / ai≥0.75）已预勾选">确认全部勾选 → 选用</button>
+      <button id="btnClearChk" title="清空勾选">清空勾选</button>
+      <span id="footCnt" class="cnt"></span>
+    </div>
+    <div id="footGrid"><div class="empty-tip">打开项目后，这里显示素材卡：<br>文件名匹配的已挂为候选；「+关联」手工挂批注；勾选后一键确认选用。</div></div>
+    <!-- S2-D 任务区：补制任务 + 剪辑交接编译（cut 输入准备） -->
+    <section id="taskzone">
+      <div id="taskhead">
+        <strong>补制任务</strong>
+        <span id="taskCnt" class="cnt"></span>
+        <span class="spacer"></span>
+        <button id="btnGenTasks" title="按呈现批注幂等生成补制任务：AI 批注→对应工具任务（card/motion/aigen，other→补拍并提示定工具）；没挂素材的人工批注→补拍任务">生成补制任务</button>
+        <button id="btnCompile" class="primary" title="把选用素材复制到 05_剪辑交接/素材/ 并生成剪辑说明.md（cut 的输入，只做输入准备，剪辑本体归 cut）">编译剪辑交接</button>
+      </div>
+      <div id="taskList"><div class="ttip">先打开项目，再点「生成补制任务」</div></div>
+    </section>
+  </section>
+</div>
+
+<!-- 挂接弹层：给某段素材勾批注（多对多） -->
+<div id="overlay"></div>
+<div id="linkModal" class="modal">
+  <div class="mhead"><strong id="linkTitle">关联批注</strong>
+    <span class="spacer"></span>
+    <button id="btnLinkSave" class="primary">保存关联</button>
+    <button id="btnLinkClose">关闭</button>
+  </div>
+  <div id="linkList"></div>
+</div>
+
+<!-- 缺拍清单弹层 -->
+<div id="missingModal" class="modal">
+  <div class="mhead"><strong id="missingTitle">缺拍清单</strong>
+    <span class="spacer"></span>
+    <button id="btnCopyMissing" class="primary">复制缺拍清单</button>
+    <button id="btnMissingClose">关闭</button>
+  </div>
+  <div id="missingBody"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

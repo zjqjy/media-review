@@ -1,0 +1,80 @@
+---
+name: shoot
+description: media 子技能：素材回收关联面板——定稿之后的拍摄素材回收。拍摄素材回来后，文件名精确匹配+AI 建议兜底把素材挂到定稿的呈现批注上，候选/选用批量确认，缺拍清单一键复制。当用户说"素材回来了"、"素材回收"、"关联素材"、"素材面板"、"缺拍"、"缺哪些镜头"、"剪辑交接"、"素材匹配"、"拍摄素材"、"回收素材"时使用。只做素材↔批注的关联与缺口清单：剪辑批注与 cut 输入编译是 S2-D，剪辑执行归 cut，成片后处理归 post。绝不碰 workbench。
+---
+
+# shoot · 素材回收关联面板
+
+```
+定稿 md ──draft 呈现批注──▶ shoot.json（R01…）
+                                │
+拍摄素材回来 ──素材回收.py──▶ 文件名精确挂接（candidate）
+              ├─ unmatched 报告 ──AI 抽帧/对口播──▶ ai:0.87 建议（仍 candidate）
+              └─ shoot 面板 ──人工批量确认──▶ selected ──（S2-D 剪辑批注）──▶ cut
+```
+
+定位一句话：**定稿后拍摄素材回收 → 与呈现批注关联 → 候选/选用 → 缺拍清单**。
+剪辑批注（editNotes）与 cut 输入编译是 S2-D，本期面板只留数据位；剪辑本体走 cut 规程。
+
+## 什么时候用我 / 不用我
+
+| 用 | 不用（换方案） |
+| --- | --- |
+| 拍摄素材拍回来了，要跟定稿的呈现批注（R01…）对上号 | 还没定稿 → 先走 draft 批注定稿 |
+| 不知道缺拍了没有，要一张补拍/补制清单 | 素材生产编排 → 各自技能（cards/aigen/vibe-motion），本技能只列缺口 |
+| 素材要用到剪辑里，先做交接盘点 | 剪辑执行 → cut；后处理 → post |
+| 多个 agent 协作回写素材状态 | **绝不碰 workbench**（用户明确排除）；协作协议卡见项目目录 AGENT_PROTOCOL.md |
+
+## 文件即状态
+
+| 文件 | 谁写 | 谁读 |
+| --- | --- | --- |
+| 定稿 md | draft 定稿流程（**本技能只读，一个字不改**） | 匹配器、面板、AI |
+| `<定稿md>.shoot.json` 旁车 | draft 批注落盘（annotations 节）；素材回收.py（footage 节）；面板（footage[].state/note/ann_ids）；agent 回写白名单字段（footage[].state/note、tasks[].state/output） | 全链路 |
+| 素材本体（mp4/jpg…） | 人拍摄 / AI 制作，**本技能绝不移动/重命名** | 匹配器只记相对路径 |
+| `素材回收报告.md` | 素材回收.py（每次回收覆盖） | AI（填建议列）、人 |
+
+schema v1（冻结，勿改字段名）：旁车分 `annotations / plan / footage / editNotes / tasks` 五节；
+footage 条目 = `{id: f01, file: 相对项目根posix路径, ann_ids: [R01…], state: candidate|selected, match: filename|ai:0.87|manual, note}`；
+`editNotes`（剪辑批注）与 `tasks`（补制任务）本期只留数据位，S2-D 启用。
+
+## 命令
+
+```bash
+python scripts/素材回收.py <项目根> [--footage-dir 相对目录] [--dry-run] [--md 定稿md路径]
+python scripts/shoot_server.py [端口] [--project 项目根]   # 默认 8790，被占 +1
+```
+
+纯标准库零依赖；ffmpeg/ffprobe 只经 subprocess 调外部二进制（自动发现：PATH →
+imageio_ffmpeg 自带，同 cut/scripts/silence_trim.py 模式），探测不到就没有时长列，不报错。
+前端自包含**无 CDN**，只绑 127.0.0.1。
+
+## AI 生产剧本（收到「素材回来了」类指令时照此执行）
+
+**触发**：用户说「素材回来了」「素材回收」「关联素材」「开素材面板」「缺拍」「剪辑交接」
+
+1. **定位项目**：找到项目根 + 定稿 md（用户给路径，或按目录里的 `*.shoot.json` 旁车认）。
+   读旁车：annotations 是关联目标，footage 是已有素材表，`source_sha256` 是定稿指纹。
+2. **跑精确匹配**：`python 素材回收.py <项目根>`——文件名含批注 id 的自动挂为候选
+   （大小写/全半角宽容；`R01R03双命中.mp4` 两头都挂；幂等，重跑不重复挂）。
+   同时产出 `素材回收报告.md`：已挂接 + 未匹配素材表（建议列空着）。
+3. **AI 建议兜底**：对 unmatched 逐个看——视频抽帧看画面（ffmpeg 可用就抽），
+   对照定稿 md 口播内容与批注的 `shoot_hint`/`ai_brief`；有把握的（≥0.60）直接把建议
+   写成 footage 新条目：`{id: 接着编号, file: 相对路径, ann_ids: [Rxx], state: "candidate",
+   match: "ai:0.87", note: "建议理由"}`（直接编辑旁车 JSON，文件即状态；拿不准的把建议
+   填进报告的「建议」列，留给用户判断）。**素材本体不动。**
+4. **起面板人工批量确认**：后台跑 `shoot_server.py --project <项目根>`，把网址给用户。
+   高置信候选（filename / ai≥0.75）已预勾选，用户核对后一键「确认全部勾选 → 选用」；
+   「+关联」可手工补挂（多对多）。
+5. **缺口收口**：点「缺拍清单」——**人工拍摄**批注无任何素材关联的行（AI 制作批注的缺口
+   在补制任务与剪辑说明缺口段表达，不进缺拍清单）；「复制缺拍清单」得到
+   markdown（含拍摄提示），交给用户去补拍，或下一步生成补制任务（S2-D）。
+   全部补齐后向用户汇报：选用 N 段 / 候选 M 段 / 缺 K 条。
+
+**红线**：
+- **不碰 workbench**——不 import 它的任何代码，不读它的 state；
+- **annotation id（R01…）定稿后永不变**——批注删除/重排都由 draft 侧管理，这里只引用；
+- **素材本体绝不移动/重命名**——只把相对项目根的 posix 路径记进旁车；
+- **定稿 md 只读**——面板对 footage 写回前做 sha 拦截，定稿被外部动过即 409 拒写；
+- 跨 agent 回写只许改白名单字段（`footage[].state/note`、`tasks[].state/output`），
+  项目目录的 AGENT_PROTOCOL.md 规程卡是协作入口（S2-E）。

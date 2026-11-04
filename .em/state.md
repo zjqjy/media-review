@@ -3,20 +3,21 @@
 > ⚡ ≤50 行单一恢复源；详细历史按需查 features/、decisions.md、problem-log.md
 
 ## Meta
-- **项目**: media-review（自媒体 skill /media 门面：cut/post/review/benchmark/cards/aigen/workbench/draft）
+- **项目**: media-review（自媒体 skill /media 门面：cut/post/review/benchmark/cards/aigen/workbench/draft/shoot）
 - **类型**: general
-- **当前步骤**: S2-shoot-pipeline 📋（定稿后拍摄计划链路，5 阶段讨论完，方案落盘待开发）
+- **当前步骤**: S2-shoot-pipeline ✅（五子流程+P1a 交付，289 单测绿，ego E2E 可用，跨 agent 回写实测通过，装位已同步）
 - **更新时间**: 2026-11-05
 - **会话**: sess-20261105-001
 
 ## 下一步动作
-1. S2-A 开发：shoot.json schema+校验 → draft 工作台呈现批注（人工/AI制作+quote圈句）→ 定稿锁定；完成后 `/em verify s2`
-2. 执行序：A → B∥C → D → E（E 跨 agent E2E 收官）；落点=draft 扩展 + 新子技能 shoot，不碰 workbench
+1. 拿真实一期走新链路：`/media draft` 定稿锁+呈现批注 → 导出拍摄清单 → 拍摄 → `/media shoot` 素材回收 → 剪辑交接给 cut；新反馈另开条目
+2. P1a 阈值标定：R02 素材+剪切稿 srt 跑 `--weld-gap 2.0` vs `0` 对比（problem-log P1a）
+3. 功能候选：B 导出的 AI 任务「产物建议路径」双基准观察 / AI 直改接缝
 
 ## 最近 3 条关键决策
-- [2026-11-05] S2 五难点选定：quote 锚定/素材全人工确认/单旁车 shoot.json 分节/AGENT_PROTOCOL.md 规程卡/③只做编排不造剪机
-- [2026-11-05] 素材归位用混合模式（用户点名）：命名约定优先+AI 匹配兜底+人工确认收尾；workbench 不参与（用户排除）
-- [2026-11-03] S1 选方案 A 自研块编辑器：md 本体纯净+旁车 review.json（D2）
+- [2026-11-05] S2 交付定音：agent 回写白名单 tasks[].state/output+footage[].state/note；项目根=素材目录层（校验器 --root 与 footage.file 同基准）；缺拍清单收敛人工拍摄口径；呈现批注 id 烧录池含 footage/tasks 引用（删后不复用）
+- [2026-11-05] 多 agent 并行开发模式验证：2 并发为上限，任务书文件域互斥+schema 冻结做共同契约；外部 agent 仅凭 AGENT_PROTOCOL.md 完成领任务-产卡-回写-自检全流程
+- [2026-11-05] P1a 修法=build_spans VAD 焊回（WELD_GAP=2.0/VAD_BRIDGE_TOL=0.2，VAD 缺失自动降级）；S1 选方案 A 自研块编辑器（D2）
 
 ## 阻塞项 / 待办
 - [ ] P1a 条目边界切字（未修，见 problem-log.md；S2 圈句锚定与其相邻，开发 A 时评估一并修）

@@ -204,3 +204,48 @@ button:disabled { opacity: .45; cursor: default; }
 .dl-del { background: var(--del); color: var(--del-ink); }
 .dl-add { background: var(--cmt); color: var(--cmt-ink); }
 .dl-ctx { color: #57606a; }
+
+/* ---------- S2 呈现批注（拍摄计划，与批注四件套同场不混色） ---------- */
+.mk-shoot.sk-manual { background: #fff4e6; border-bottom: 2px dashed #d9480f; }
+.mk-shoot.sk-ai { background: #f3f0ff; border-bottom: 2px dashed #6741d9; }
+.cbadge.sk-manual, #mktip .sk-manual { background: #d9480f; }
+.cbadge.sk-ai, #mktip .sk-ai { background: #6741d9; }
+.blkbadge { position: absolute; top: -2px; right: 4px; z-index: 4;
+            font-size: 11px; line-height: 1.4; color: #d9480f;
+            cursor: pointer; opacity: .75; }
+/* 文本走 ::after(attr)——textContent/innerText 都读不到，不污染正文纯文本 */
+.blkbadge::after { content: attr(data-label); }
+.blkbadge:hover { opacity: 1; }
+
+.shoot-form { border: 1px solid #ffd8a8; background: #fff9f2; border-radius: 8px;
+              padding: 10px 12px; margin: 4px 0 10px; font-size: 13px; }
+.sf-head { font-weight: 600; margin-bottom: 6px; }
+.sf-modes { display: flex; gap: 16px; margin-bottom: 6px; }
+.sf-modes label { cursor: pointer; }
+.shoot-form textarea, .shoot-form select {
+  width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; font-size: 13px; margin-bottom: 6px; background: #fff;
+}
+.sf-aibox select { width: auto; min-width: 170px; }
+.sf-acts { display: flex; gap: 8px; }
+
+.scard { border: 1px solid var(--line); border-left: 3px solid #d9480f;
+         border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+         font-size: 13px; background: var(--bg); }
+.scard.sk-ai { border-left-color: #6741d9; }
+.scard.orphan { border-color: #ffb3b3; background: #fff5f5; }
+#shootSec { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+#shootSec h3 { margin: 0 0 6px; }
+#shootStats { color: var(--mute); font-size: 12px; margin-bottom: 8px; }
+/* S2-B 导出按钮行：拍摄清单落盘 + AI 制作任务复制（与面板同宽自适应换行） */
+#shootActs { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+#shootActs button { font-size: 12px; padding: 3px 10px; }
+
+/* ---------- 定稿锁：正文只读，呈现批注（🎬）照常 ---------- */
+body.locked .blktools button:not(.t-shoot) { display: none; }
+body.locked .blk:hover, body.locked .blk:focus {
+  border-left-color: var(--line); background: transparent;
+}
+body.locked #selbar button[data-act]:not([data-act="shoot"]) { display: none; }
+body.locked #selInput { display: none !important; }
+body.locked #doc { background: #fcfcf8; }

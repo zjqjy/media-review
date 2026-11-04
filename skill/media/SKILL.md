@@ -1,6 +1,6 @@
 ---
 name: media
-description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后处理（post）+ 发后数据复盘（review）+ 找对标拆解（benchmark）+ 录屏用 HTML 卡片（cards）+ AI 生图素材（aigen）+ 大纲/脚本审阅修改工作台（draft）。当用户说"复盘"、"看数据"、"表现怎么样"、"粗剪"、"剪辑提效"、"砍静音"、"压缩素材"、"转录"、"选段"、"加字幕"、"响度"、"做卡"、"字幕卡"、"HTML PPT"、"录屏卡"、"插播卡"、"找对标"、"对标"、"拆解视频"、"模仿"、"学别人怎么剪"、"AI 生图"、"生成图片"、"生成贴纸"、"表情包"、"Seedream"、"豆包生图"、"去底"、"扣底"、"审稿"、"改稿"、"大纲批注"、"逐句批注"、"改大纲"、"改脚本"、"draft"，提到 AutoCut/FunClip/yt-dlp/Seedream/draft 工作台，或手上有素材要剪、成片要后处理、视频发完想看效果、要做插播信息卡、想找对标学习、要用 AI 生成图片素材、AI 初稿要逐句改稿打批注时使用。先按意图路由到子技能，再读对应子技能的 SKILL.md 照做。
+description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后处理（post）+ 发后数据复盘（review）+ 找对标拆解（benchmark）+ 录屏用 HTML 卡片（cards）+ AI 生图素材（aigen）+ 大纲/脚本审阅修改工作台（draft）+ 定稿后拍摄计划与素材关联（shoot）。当用户说"复盘"、"看数据"、"表现怎么样"、"粗剪"、"剪辑提效"、"砍静音"、"压缩素材"、"转录"、"选段"、"加字幕"、"响度"、"做卡"、"字幕卡"、"HTML PPT"、"录屏卡"、"插播卡"、"找对标"、"对标"、"拆解视频"、"模仿"、"学别人怎么剪"、"AI 生图"、"生成图片"、"生成贴纸"、"表情包"、"Seedream"、"豆包生图"、"去底"、"扣底"、"审稿"、"改稿"、"大纲批注"、"逐句批注"、"改大纲"、"改脚本"、"draft"、"呈现批注"、"拍摄计划"、"定稿锁定"、"素材回来了"、"素材回收"、"关联素材"、"素材面板"、"缺拍"、"剪辑交接"、"shoot"，提到 AutoCut/FunClip/yt-dlp/Seedream/draft 工作台，或手上有素材要剪、成片要后处理、视频发完想看效果、要做插播信息卡、想找对标学习、要用 AI 生成图片素材、AI 初稿要逐句改稿打批注、定稿后要排拍摄计划、拍完的素材要关联批注时使用。先按意图路由到子技能，再读对应子技能的 SKILL.md 照做。
 ---
 
 # media · 自媒体（门面）
@@ -11,7 +11,10 @@ description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后�
 对标 ──benchmark──▶ 拆解笔记+可模仿要素（进选题池/下期规划）
                         ↓
 选题 ──AI 出初稿──▶ draft 网页审阅批注 ──✨清单喂 AI──▶ 定稿口播 md
-                                                          ↓
+                                                          │ 🔒定稿锁定 ──🎬呈现批注──▶ 拍摄计划清单+AI制作任务
+                                                          ▼                （AGENT_PROTOCOL 喂 zcode/claude code/codex）
+拍摄回来 ──shoot 素材关联──▶ 素材表+剪辑批注 ──编译──▶ 05_剪辑交接/ ──┐
+                                                                    ▼
 素材 ──cut──▶ 粗剪草稿+粗片存档+逐字稿 ──人工精剪──▶ post ──▶ 定稿 ──发布──▶ review
                 └── 逐字稿归档 vault 复盘/逐字稿/，review 直接取（闭环）
                                             review 的对标校准 ◀── 读 benchmark 拆解笔记
@@ -27,9 +30,10 @@ description: 自媒体全流程技能：发前剪辑提效（cut）+ 发前后�
 | 找对标 / 拆解视频 / 模仿某 UP 主 / 学别人怎么剪 / 对标下载 | **benchmark** | 读 `benchmark/SKILL.md` 照做（B站公开接口搜对标，小号下载视频+AI字幕逐字稿，拆解写对标笔记；大号 Cookie 绝不进这条链路） |
 | 做卡 / 字幕卡 / 信息卡 / HTML PPT / 录屏卡 / 插播卡 | **cards** | 读 `cards/SKILL.md` 照做（录屏用 HTML 卡；跟口播节拍的纯动画直出归 Remotion，不归这里） |
 | AI 生图 / 生成贴纸 / 表情包 / 生成插画 / Seedream / 豆包生图 / 去底 / 扣底 | **aigen** | 读 `aigen/SKILL.md` 照做（火山方舟 Seedream 按量生成，先单张验画风再批量；key 走 ARK_API_KEY 或 .ark_key，绝不进仓库） |
-| 审稿 / 改稿 / 大纲批注 / 逐句批注 / 改大纲 / 改脚本 / draft | **draft** | 读 `draft/SKILL.md` 照做（AI 初稿 md 进网页逐块编辑+批注四件套，✨复制修改清单喂 AI，md 本体纯净写回；定稿接 workbench；源文件在哪就在哪，AI 负责起服务） |
+| 审稿 / 改稿 / 大纲批注 / 逐句批注 / 改大纲 / 改脚本 / draft | **draft** | 读 `draft/SKILL.md` 照做（AI 初稿 md 进网页逐块编辑+批注四件套，✨复制修改清单喂 AI，md 本体纯净写回；定稿🔒锁定+🎬呈现批注+📋拍摄清单导出接 shoot；源文件在哪就在哪，AI 负责起服务） |
+| 素材回来了 / 素材回收 / 关联素材 / 素材面板 / 缺拍 / 剪辑交接 / shoot | **shoot** | 读 `shoot/SKILL.md` 照做（定稿后拍摄计划链路：素材回收匹配[文件名约定优先+AI 建议]+人工确认面板→候选/选用→缺拍清单→补制任务→剪辑批注+05_剪辑交接编译给 cut；AGENT_PROTOCOL.md 让任意 agent 领任务回写，越权必拒收） |
 | 素材工作台 / 口播素材关联 / 视频项目脚手架 / 做素材 | **workbench** | 读 `workbench/SKILL.md` 照做（口播↔素材关联面板 + 项目目录脚手架；集成 cards 与 vibe-motion 社区动效技能） |
 | 剪完接着问数据 | post → review | 先走完 post 的逐字稿归档，再进 review |
 | 意图不明 | 问一句 | "要剪素材还是复盘数据？"，别猜着跑 |
 
-子技能目录各自带 `scripts/`，脚本路径以子技能 SKILL.md 内写的为准。跨子技能共用的东西只有两处：vault 路径（post 归档逐字稿、review 读取）、`cut/scripts/asr_fixes.json`（错拼表，post 的字幕也套用）。
+子技能目录各自带 `scripts/`，脚本路径以子技能 SKILL.md 内写的为准。跨子技能共用的东西只有三处：vault 路径（post 归档逐字稿、review 读取）、`cut/scripts/asr_fixes.json`（错拼表，post 的字幕也套用）、`<定稿md>.shoot.json` 旁车（draft 写呈现批注/锁定，shoot 写素材关联/剪辑批注，外部 agent 按白名单回写——schema 见 draft/scripts/shoot_io.py，回写校验 shoot/scripts/shoot_validate.py）。

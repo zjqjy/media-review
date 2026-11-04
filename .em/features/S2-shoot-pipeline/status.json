@@ -1,15 +1,17 @@
 {
   "discussion_id": "20261105-shoot-pipeline",
   "created_at": "2026-11-05",
-  "current_phase": 5,
+  "current_phase": 6,
   "phases": {
     "split": "completed",
     "requirements": "completed",
     "hardware": "skipped (纯软件)",
     "brainstorm": "completed",
-    "milestones": "completed"
+    "milestones": "completed",
+    "development": "completed",
+    "e2e": "completed (ego 全链路可用 + 跨 agent 回写实测通过)"
   },
   "subsystems": ["呈现方式批注", "素材关联", "剪辑阶段编排", "Agent协作协议"],
   "current_subsystem": 4,
-  "next": "S2-A 开发，完成后 /em verify s2"
+  "next": "真实一期素材试用；P1a 阈值标定；新反馈另开条目"
 }

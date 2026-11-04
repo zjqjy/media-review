@@ -17,6 +17,7 @@
   <button id="btnSave" class="primary" disabled>保存 (Ctrl+S)</button>
   <button id="btnAI" disabled>✨ 复制给 AI</button>
   <button id="btnHist" disabled>📜 历史</button>
+  <button id="btnLock" disabled title="定稿并锁定全文（正文只读，呈现批注仍可改）">🔒 定稿</button>
   <span id="status"></span>
 </header>
 
@@ -27,6 +28,17 @@
   <aside id="panel">
     <h3>批注 <span class="cnt" id="cmtCnt"></span><button id="btnResolveAll" title="AI 改完后把全部批注标为已处理">全部已处理</button></h3>
     <div id="cmtList"><div class="btip">还没有批注</div></div>
+    <div id="shootSec">
+      <h3>🎬 拍摄计划 <span class="cnt" id="shootCnt"></span></h3>
+      <div id="shootStats"></div>
+      <div id="shootActs">
+        <button id="btnShootExport" disabled
+                title="导出拍摄计划清单 + AI 制作任务清单（落到定稿同目录；定稿锁定后也可导出）">📋 导出拍摄清单</button>
+        <button id="btnShootCopyAI" disabled
+                title="把 AI 制作任务清单复制进剪贴板，粘贴给任意 agent 逐条执行">✨ 复制AI制作任务</button>
+      </div>
+      <div id="shootList"><div class="btip">打开文件后这里显示拍摄计划</div></div>
+    </div>
   </aside>
 </div>
 
@@ -36,6 +48,7 @@
   <button data-act="replace" title="标记替换">替换</button>
   <button data-act="comment" title="评论意见">评论</button>
   <button data-act="highlight" title="高亮强调">高亮</button>
+  <button data-act="shoot" title="呈现批注（拍什么 / AI 制作什么，定稿后仍可用）">呈现</button>
   <input id="selInput" placeholder="输入内容后回车">
 </div>
 

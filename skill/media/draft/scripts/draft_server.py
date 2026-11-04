@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """draft_server.py — draft 审阅工作台本地服务（纯标准库，零依赖）
 
-职责：静态托管 web/ 前端 + 四个 JSON API。文件即数据库：
+职责：静态托管 web/ 前端 + JSON API。文件即数据库：
   - md 本体：<path>（客户端整档块数组写回，round-trip 保真见 draft_blocks）
   - 批注旁车：<path>.review.json（原子写：tmp + os.replace）
+  - 拍摄计划旁车：<path>.shoot.json（S2 定稿链路：呈现批注/定稿锁，读写见 shoot_io）
 
 安全边界：只绑 127.0.0.1，无鉴权（本机个人工具，与 fetch_bili 同红线——
 不对外暴露）。路径由用户在页面里给，服务端不做目录白名单（vault 在仓外）。
@@ -24,6 +25,9 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from draft_blocks import parse_blocks, render_blocks, match_comment_blocks  # noqa: E402
+from shoot_io import (  # noqa: E402
+    ShootShaMismatch, is_locked, load_shoot, save_shoot, validate_shoot)
+import shoot_export  # noqa: E402  —— S2-B：拍摄计划清单导出（build/落盘/回填 plan）
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -239,6 +243,17 @@ class DraftHandler(BaseHTTPRequestHandler):
                 if not name.endswith(".md") or not os.path.isfile(fp):
                     return self._json({"error": "快照不存在"}, 404)
                 return self._json({"name": name, "content": _read_text(fp)})
+            if u.path == "/api/shoot":
+                qs = parse_qs(u.query)
+                p = unquote(qs.get("path", [""])[0])
+                if not p or not os.path.isfile(p):
+                    return self._json({"error": "文件不存在"}, 404)
+                try:
+                    s = load_shoot(p)
+                except ValueError as e:  # 旁车 JSON 损坏：给人话，别裸 500
+                    return self._json({"error": f"旁车读取失败: {e}"}, 500)
+                return self._json({"path": p, "shoot": s,
+                                   "errors": validate_shoot(s)})
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001 —— 兜底别让线程静默死
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -255,6 +270,14 @@ class DraftHandler(BaseHTTPRequestHandler):
                 return self._api_review(data)
             if u.path == "/api/rollback":
                 return self._api_rollback(data)
+            if u.path == "/api/shoot":
+                return self._api_shoot(data)
+            if u.path == "/api/finalize":
+                return self._api_finalize(data, True)
+            if u.path == "/api/unfinalize":
+                return self._api_finalize(data, False)
+            if u.path == "/api/shoot_export":
+                return self._api_shoot_export(data)
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -270,6 +293,8 @@ class DraftHandler(BaseHTTPRequestHandler):
         p = data.get("path", "")
         if not p or not os.path.isfile(p):
             return self._json({"error": "文件不存在: " + p}, 404)
+        if is_locked(p):  # 定稿锁：锁死就是锁死，force 也不给过——要改先调 /api/unfinalize
+            return self._json({"error": "locked"}, 403)
         blocks = data.get("blocks")
         if not isinstance(blocks, list) or not blocks:
             return self._json({"error": "blocks 为空，拒绝写回"}, 400)
@@ -304,6 +329,8 @@ class DraftHandler(BaseHTTPRequestHandler):
 
     def _api_rollback(self, data):
         p = data.get("path", "")
+        if is_locked(p):  # 定稿锁同样挡回滚——回滚会重写 md 本体
+            return self._json({"error": "locked"}, 403)
         name = os.path.basename(data.get("name", ""))  # 只认纯文件名
         fp = os.path.join(_history_dir(p), name)
         if not name.endswith(".md") or not os.path.isfile(fp):
@@ -314,6 +341,58 @@ class DraftHandler(BaseHTTPRequestHandler):
         return self._json({"path": p,
                            "sha256": _sha256_bytes(content.encode("utf-8")),
                            "bytes": len(content.encode("utf-8"))})
+
+    # —— shoot.json 旁车（S2：定稿后的拍摄计划；与 .review.json 互不干扰）——
+    def _api_shoot(self, data):
+        """呈现批注/拍摄计划旁车整体保存（save_shoot 全量校验 + md 指纹拦截）。
+
+        定稿锁不拦这里——锁的是 md 本体，呈现批注定稿后仍可增删改。
+        """
+        p = data.get("path", "")
+        if not p or not os.path.isfile(p):
+            return self._json({"error": "文件不存在: " + p}, 404)
+        shoot = data.get("shoot")
+        if not isinstance(shoot, dict):
+            return self._json({"error": "shoot 缺失"}, 400)
+        try:
+            save_shoot(p, shoot)
+        except ShootShaMismatch as e:  # md 被外部改过：语义同 /api/save 的 409
+            return self._json({"error": str(e)}, 409)
+        except ValueError as e:        # schema 校验失败
+            return self._json({"error": str(e)}, 400)
+        return self._json({"path": p, "saved": True})
+
+    def _api_finalize(self, data, locked):
+        """定稿锁开关：locked=true 后 /api/save、/api/rollback 拒写 md（403）"""
+        p = data.get("path", "")
+        if not p or not os.path.isfile(p):
+            return self._json({"error": "文件不存在: " + p}, 404)
+        try:
+            s = load_shoot(p)
+            s["locked"] = locked
+            save_shoot(p, s)
+        except ShootShaMismatch as e:  # md 被外部改过：先核对再定稿
+            return self._json({"error": str(e)}, 409)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
+        return self._json({"path": p, "locked": locked})
+
+    def _api_shoot_export(self, data):
+        """S2-B 导出拍摄清单：定稿同目录落 <md>_拍摄清单.md + <md>_AI制作任务.md，
+        并回填旁车 plan 两个字段。定稿锁不拦——锁稿不锁清单（save_shoot 本就
+        不受 locked 限制，呈现批注定稿后仍可维护，清单随批注现导现新）。"""
+        p = data.get("path", "")
+        if not p or not os.path.isfile(p):
+            return self._json({"error": "文件不存在: " + p}, 404)
+        try:
+            cl_path, ai_path, cl_md, ai_md = shoot_export.export_all(p)
+        except ShootShaMismatch as e:  # md 被外部改过：语义同 /api/save 的 409
+            return self._json({"error": str(e)}, 409)
+        except ValueError as e:        # 旁车 schema 校验失败
+            return self._json({"error": str(e)}, 400)
+        return self._json({"path": p, "checklist": cl_path, "ai_tasks": ai_path,
+                           "checklist_md_content": cl_md,
+                           "ai_tasks_md_content": ai_md})
 
 
 # ---------------------------------------------------------------- 入口

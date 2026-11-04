@@ -38,6 +38,8 @@ python scripts/draft_server.py [端口] [--dir 默认浏览目录]
 - **📜 历史**：每次保存自动快照改动前的版本（保留 50 份，存 `<原名>.draft_history/`），弹层里行级 diff（红删绿增），一键回滚（当前版先自动快照，回滚可再撤销）
 - **保存**：Ctrl+S；文件被外部改过会拦截（409），确认后可强制覆盖
 - **✨ 复制给 AI**：待处理批注 + 分块全文打包成修改指令清单进剪贴板
+- **🎬 呈现批注（定稿后）**：块工具条 🎬 或选中文字浮动条「呈现」——标这段以什么方式呈现：**人工拍摄**（拍什么/场景提示）或 **AI 制作**（类型 card|motion|aigen|other + 给 AI 的指令）；块级为主，也可块内圈句只标一句；存旁车 `.shoot.json`，与 `.review.json` 互不干扰
+- **🔒 定稿锁定**：定稿后点 🔒，md 转只读（编辑/移动/回滚全拒），呈现批注仍可增删改；🔓可解锁（要改稿先解锁）。锁定后「📋导出拍摄清单」「✨复制AI制作任务」照常可用（锁稿不锁清单）
 
 ## AI 配合流程（ZCode/Claude 生产剧本）
 
@@ -48,7 +50,7 @@ python scripts/draft_server.py [端口] [--dir 默认浏览目录]
 3. **等批注**：用户在网页里改字、打批注；批注自动落旁车文件
 4. **改稿**：用户说「改稿」并贴 ✨清单（或直接读旁车 `.review.json`）→ 按意见修改 → **写回同一文件**，保持块结构与未提及内容原样，别丢 frontmatter
 5. **复核闭环**：用户网页里重开（Ctrl+R）——改过的块若失锚会置顶提醒；确认无误点「全部已处理」
-6. **定稿**：口播 md 交 workbench（`新视频项目.py` + 素材面板）
+6. **定稿进入拍摄链路**：点 🔒 定稿锁定（md 只读）→ 逐块打 🎬呈现批注排拍摄计划 → 📋导出拍摄清单（建议文件名随身去拍）/ ✨复制AI制作任务喂任意 agent 现做 → 素材回来走 `shoot` 子技能关联（旧 workbench 面板仍可用，但本链路不走它）
 
 ## 数据格式（红线）
 
@@ -64,6 +66,17 @@ python scripts/draft_server.py [端口] [--dir 默认浏览目录]
 ```
 
 - **锚定三级回落**：block_hash（`md5(type+"\0"+raw)[:10]`，前后端算法对齐已对拍）→ quote 全文找回 → orphan 置顶人工重锚；**绝不静默丢批注**
+- **拍摄计划旁车** `<原名>.md.shoot.json`（定稿后启用，schema 详见 `scripts/shoot_io.py`，shoot 子技能消费）：
+
+```json
+{"version": 1, "source_sha256": "定稿md指纹", "locked": false,
+ "annotations": [{"id": "R01", "block_hash": "...", "quote": "", "occurrence": 1,
+   "kind": "manual|ai", "shoot_hint": "拍什么", "ai_type": "card|motion|aigen|other",
+   "ai_brief": "给AI的指令", "status": "open", "created": "..."}],
+ "plan": {}, "footage": [], "editNotes": [], "tasks": []}
+```
+
+- **agent 回写白名单**：外部 agent 只许改 `tasks[].state/output` 与 `footage[].state/note`，越权被 `shoot/scripts/shoot_validate.py` 拒收；annotation id（R01…）定稿后永不变，即素材建议文件名主干
 - **AI 直改是下期接缝**：✨清单格式（`[B#] (type)` 分块 + 编号意见）就是它的输入协议
 
 ## 已知边界（v1）
