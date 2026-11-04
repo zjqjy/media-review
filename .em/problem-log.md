@@ -57,3 +57,15 @@
 **修复**：工具条改**竖排**，`left:100%` 锚块右缘外——整条 40px 落进装订沟，与块盒子几何零交集（ego 实测 barLeft 767 ≥ blockRight 763，overlap=false）；🗑 加确认框。
 
 **教训**：修「误操作」类 bug，几何断言要在**显示态**量（P3 的 E2E 在 display:none 时量出 0×0 矩形，overlap 恒 false，假绿）。
+
+## P5 真凶落网：段落乱跑与拖拽无关（2026-11-05，用户三报后自查定案，当日闭环）
+
+**现象**：P4 修完工具条几何后用户仍报「点了还是跑」。截图显示块序被打乱且工具条已不压字。
+
+**根因**（真正主犯，此前三轮全在冤案拖拽上打转）：`refreshBlockEl` 里 `replaceChild(newEl, old)` 后画蛇添足 `insertBefore(next, old.nextSibling)`——old 已脱离 DOM，`nextSibling` 恒为 null → insertBefore(next, null) = **把「下一块」append 到文档末尾**。每次块失焦（commitBlockEdit）或打批注（addComment）都触发，旁边的块就飞走。S.blocks 数组自始至终正确——**乱的纯是 DOM 显示层，盘上稿子逐字未伤**（parse 复核：15 个标题顺序全对）。
+
+**修复**：`old.replaceWith(...)` 一行保位，删除补位逻辑。
+
+**闭环**：ego R7 按真实用户流四断言全过——改字失焦/打批注/连改两块后 DOM==数据、文档末尾恒为 51,52,53；测试改字未落盘、测试批注已清理。
+
+**教训**：①「点击乱序」类问题要完整复刻用户操作流（含失焦重绘），只测 click 本身测不到；② DOM 显示层与数据层要分开断言（本次数据层一直是对的，三轮 E2E 都只查了数据层）。

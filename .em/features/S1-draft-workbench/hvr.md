@@ -30,3 +30,6 @@
 
 ### R6 工具条几何修复复验（2026-11-05）— 通过
 P4：横排工具条 96px 压正文（P3 的 E2E 在 display:none 下量矩形，假绿）。竖排 left:100% 后几何断言通过：barLeft 767 ≥ blockRight 763、overlap=false、40px 全落装订沟。🗑 加确认。
+
+### R7 真凶修复复验（2026-11-05）— 通过
+P5：refreshBlockEl 的 insertBefore(next, 脱离DOM的old.nextSibling=null) 把下一块 append 到文档末尾——每次失焦/打批注触发。盘上数据复核从未损坏（纯显示层）。replaceWith 一行修后，按真实用户流（改字失焦/打批注/连改两块）四断言全过，文档末尾恒 51,52,53。

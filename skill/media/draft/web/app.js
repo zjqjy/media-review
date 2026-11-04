@@ -276,10 +276,10 @@ function commitBlockEdit(el, idx) {
 function refreshBlockEl(idx) {
   const old = document.querySelector(`.blk[data-idx="${idx}"]`);
   if (!old) return;
-  const parent = old.parentElement;
-  const next = old.nextSibling;
-  parent.replaceChild(buildBlockEl(S.blocks[idx], idx), old);
-  if (next && next !== old) parent.insertBefore(next, old.nextSibling);
+  old.replaceWith(buildBlockEl(S.blocks[idx], idx));
+  /* （P5）原来 replaceChild 后还画蛇添足 insertBefore(next, old.nextSibling)——
+     old 已脱离 DOM，nextSibling 恒 null → 「下一块」被 append 到文档末尾。
+     每次失焦/打批注旁边块就飞走，就是它。replaceWith 本身就保位，无需任何补位。 */
 }
 function flashBlock(idx) {
   const el = document.querySelector(`.blk[data-idx="${idx}"]`);
