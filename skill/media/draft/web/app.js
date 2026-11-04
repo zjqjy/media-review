@@ -93,6 +93,22 @@ function setStatus(text, dirty) {
   el.textContent = text;
   el.classList.toggle("dirty", !!dirty);
 }
+let toastTimer = null;
+function toast(msg, isErr) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.classList.toggle("err", !!isErr);
+  el.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("on"), isErr ? 4200 : 2600);
+}
+function cleanPath(p) {
+  /* Windows「复制文件地址」自带引号、手敲常有首尾空白——剥掉再给服务端 */
+  return (p || "").trim()
+    .replace(/^["'\u201c\u2018\u300c]+/, "")
+    .replace(/["'\u201d\u2019\u300d]+$/, "")
+    .trim();
+}
 function markDirty() {
   S.dirty = true;
   setStatus(S.path ? "未保存" : "", true);
@@ -199,9 +215,6 @@ function buildBlockEl(b, idx) {
   }
 
   el.appendChild(buildBlockTools(idx));
-  el.addEventListener("dragstart", e => {        // 拖拽排序：挂在块上，工具条创建时 bar 还没进 DOM
-    e.dataTransfer.setData("text/plain", String(idx));
-  });
   el.addEventListener("click", () => {           // 重锚模式：点块即重锚
     if (S.reanchorCid !== null) doReanchor(idx);
   });
@@ -223,10 +236,13 @@ function buildBlockTools(idx) {
   mk("✚", "在下方插入空块", () => insertBlockAfter(idx));
   mk("🗑", "删除此块", () => removeBlock(idx));
   mk("💬", "整块评论", () => { addComment(idx, "comment", { quote: "" }); });
-  mk("⠿", "拖拽排序", () => {});
-  bar.lastChild.classList.add("drag-handle");
-  bar.lastChild.addEventListener("mousedown", () => {
-    bar.parentElement.draggable = true;        // 回调时已在 DOM，parentElement 才有值
+  mk("⠿", "拖拽排序（按住我拖，点正文永远是选字）", () => {});
+  const handle = bar.lastChild;
+  handle.classList.add("drag-handle");
+  handle.draggable = true;                     // 拖拽只认手柄：块本身永不可拖，选字绝不会被劫持
+  handle.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", String(idx));
+    e.dataTransfer.effectAllowed = "move";
   });
   return bar;
 }
@@ -508,7 +524,7 @@ async function save(force) {
     if (e.status === 409 && confirm("文件已被外部修改（可能被别的程序动过）。\n强制覆盖？")) {
       return save(true);
     }
-    setStatus("保存失败: " + e.message);
+    toast("保存失败：" + e.message, true);
   }
 }
 $("#btnSave").addEventListener("click", () => save());
@@ -578,7 +594,7 @@ function renderRecent() {
 }
 
 async function openPath(p) {
-  p = (p || "").trim();
+  p = cleanPath(p);
   if (!p) return;
   try {
     const d = await api("/api/open", { path: p });
@@ -589,10 +605,11 @@ async function openPath(p) {
     renderDoc(); renderPanel(); addRecent(d.path);
     $("#pathInput").value = d.path;
     $("#btnSave").disabled = false; $("#btnAI").disabled = false;
+    $("#btnHist").disabled = false;
     S.dirty = false;
     setStatus("已打开（" + S.blocks.length + " 块，批注 " + S.review.comments.length + " 条）");
   } catch (e) {
-    setStatus("打开失败: " + e.message);
+    toast("打开失败：" + e.message + "（检查路径是否正确）", true);
   }
 }
 $("#btnOpen").addEventListener("click", () => openPath($("#pathInput").value));
@@ -663,10 +680,132 @@ docEl.addEventListener("drop", e => {
   if (to > from) to -= 1;                          // 先摘后插的位移修正
   moveBlock(from, to);
 });
-document.addEventListener("dragend", e => {
-  const b = e.target && e.target.closest && e.target.closest(".blk");
-  if (b) b.draggable = false;
+
+/* ================= 📜 版本历史（快照/行级 diff/回滚） ================= */
+const histModal = $("#histModal");
+let histSel = null;
+
+function currentText() {
+  return S.blocks.map(b => (b.raw || "") + "\n".repeat(b.gap || 1)).join("");
+}
+
+function lineDiff(oldText, newText) {
+  /* 行级 LCS diff——审阅稿都是几百行内，O(n·m) 直接上；超 600 行退化为纯展示 */
+  const a = oldText.split("\n"), b = newText.split("\n");
+  if (a.length > 600 || b.length > 600) {
+    return a.map(l => `<span class="dl-ctx">${esc(l)}</span>`).join("\n");
+  }
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1
+                               : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push(`<span class="dl-ctx">  ${esc(a[i])}</span>`); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push(`<span class="dl-del">- ${esc(a[i])}</span>`); i++; }
+    else { out.push(`<span class="dl-add">+ ${esc(b[j])}</span>`); j++; }
+  }
+  while (i < n) { out.push(`<span class="dl-del">- ${esc(a[i])}</span>`); i++; }
+  while (j < m) { out.push(`<span class="dl-add">+ ${esc(b[j])}</span>`); j++; }
+  return out.join("\n");
+}
+
+function fmtSnap(name) {
+  const m = name.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:_(\d+))?\.md$/);
+  if (!m) return name;
+  return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]}`
+    + (m[7] ? ` (#${m[7]})` : "");
+}
+
+async function showHistory() {
+  if (!S.path) { toast("先打开文件"); return; }
+  histModal.classList.add("on"); overlay.classList.add("on");
+  histSel = null;
+  $("#btnRollback").disabled = true;
+  $("#histDiff").classList.remove("on");
+  const wrap = $("#histList");
+  wrap.innerHTML = '<div class="btip">读取中…</div>';
+  try {
+    const r = await api("/api/history?path=" + encodeURIComponent(S.path));
+    $("#histTitle").textContent = `📜 历史版本（${r.files.length}）`;
+    if (!r.files.length) {
+      wrap.innerHTML = '<div class="btip">还没有历史——每次保存会自动快照改动前的版本</div>';
+      return;
+    }
+    wrap.innerHTML = "";
+    for (const f of r.files) {
+      const row = document.createElement("div");
+      row.className = "frow";
+      row.dataset.name = f.name;
+      row.innerHTML = `<span class="fn">🕐 ${esc(fmtSnap(f.name))}（改动前的版本）</span>`
+        + `<span class="fm">${(f.size / 1024).toFixed(1)}KB</span>`;
+      row.addEventListener("click", () => loadSnapshot(f.name, row));
+      wrap.appendChild(row);
+    }
+  } catch (e) {
+    wrap.innerHTML = `<div class="btip">读取失败: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadSnapshot(name, row) {
+  histSel = name;
+  [...$("#histList").querySelectorAll(".frow")].forEach(x => x.classList.remove("sel"));
+  row.classList.add("sel");
+  try {
+    const r = await api("/api/history_get?path=" + encodeURIComponent(S.path)
+      + "&name=" + encodeURIComponent(name));
+    $("#histDiff").innerHTML =
+      `<span class="dl-ctx">快照 ${fmtSnap(name)} vs 当前 —— 红=这版有/现在没了，绿=现在有/这版没有</span>\n`
+      + lineDiff(r.content, currentText());
+    $("#histDiff").classList.add("on");
+    $("#histDiff").classList.remove("hidden");
+    $("#btnRollback").disabled = false;
+  } catch (e) {
+    toast("读快照失败：" + e.message, true);
+  }
+}
+
+$("#btnHist").addEventListener("click", showHistory);
+$("#btnHistClose").addEventListener("click", () => {
+  histModal.classList.remove("on"); overlay.classList.remove("on");
 });
+$("#btnRollback").addEventListener("click", async () => {
+  if (!histSel) return;
+  if (!confirm(`把稿子回滚到 ${fmtSnap(histSel)}？\n（当前版本会先自动快照，随时能滚回来）`)) return;
+  try {
+    await api("/api/rollback", { path: S.path, name: histSel });
+    toast("已回滚，正在重新加载…");
+    histModal.classList.remove("on"); overlay.classList.remove("on");
+    await openPath(S.path);
+  } catch (e) {
+    toast("回滚失败：" + e.message, true);
+  }
+});
+
+/* ================= 批注悬停卡片（自绘，即时显示） ================= */
+const mktip = $("#mktip");
+function hideMktip() { mktip.classList.remove("on"); }
+document.addEventListener("mouseover", e => {
+  const mk = e.target && e.target.closest && e.target.closest(".mk");
+  if (!mk) { hideMktip(); return; }
+  const c = S.review.comments.find(x => x.id === mk.dataset.cid);
+  if (!c) { hideMktip(); return; }
+  mktip.innerHTML =
+    `<div class="tt-head"><span class="cbadge ty-${c.type}">${TY_NAME[c.type] || c.type}</span></div>`
+    + (c.quote ? `<div class="tt-quote">「${esc(c.quote)}」</div>` : "")
+    + (c.type === "replace" && c.suggestion ? `<div class="tt-sug">改为：${esc(c.suggestion)}</div>` : "")
+    + (c.note ? `<div class="tt-note">${esc(c.note)}</div>` : "");
+  mktip.classList.add("on");
+  const r = mk.getBoundingClientRect();
+  mktip.style.top = Math.max(6, r.top - mktip.offsetHeight - 8) + "px";
+  mktip.style.left =
+    Math.min(window.innerWidth - mktip.offsetWidth - 8,
+             Math.max(8, r.left)) + "px";
+});
+window.addEventListener("scroll", hideMktip, true);
 
 /* ================= 启动 ================= */
 (async function init() {

@@ -5,13 +5,13 @@
 ## Meta
 - **项目**: media-review（自媒体 skill /media 门面：cut/post/review/benchmark/cards/aigen/workbench）
 - **类型**: general
-- **当前步骤**: S1-draft-workbench ✅（开发+E2E 验证完成，待正式 verify）
-- **更新时间**: 2026-11-03
+- **当前步骤**: S1-draft-workbench ✅（P2 四项修复完，ego R4 复验通过，HVR 关账）
+- **更新时间**: 2026-11-05
 - **会话**: sess-20261103-001
 
 ## 下一步动作
-1. `/em verify s1` 走正式验证+commit 提议（开发与 ego E2E 已完成：65 单测+全链路浏览器验证）
-2. 备选：真实一期大纲试用，反馈进 S1-HVR
+1. 拿真实一期大纲走 `/media draft` 试用一轮，新反馈另开条目
+2. 下一步功能候选：AI 直改接缝（✨清单格式即输入协议）
 
 ## 最近 3 条关键决策
 - [2026-11-03] S1 选方案 A 自研块编辑器：md 本体纯净+旁车 review.json，高亮不进 md（D2）

@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
@@ -36,6 +37,37 @@ def _sha256_bytes(data):
 def _sidecar_path(md_path):
     """批注旁车：<原名>.review.json（outline.md → outline.md.review.json）"""
     return str(md_path) + ".review.json"
+
+
+def _history_dir(md_path):
+    """版本快照目录：<原名>.draft_history/（跟 md 放一起，文件即历史）"""
+    return str(md_path) + ".draft_history"
+
+
+def _snapshot_current(md_path, new_text):
+    """保存/回滚前把当前内容快照进历史（内容没变不快照）；保留最近 50 份"""
+    try:
+        cur = _read_text(md_path)
+    except OSError:
+        return None
+    if cur == new_text:
+        return None
+    hdir = _history_dir(md_path)
+    os.makedirs(hdir, exist_ok=True)
+    stem = time.strftime("%Y%m%d_%H%M%S")
+    cand = os.path.join(hdir, stem + ".md")
+    k = 1  # 同秒多次保存加序号，防快照互相覆盖
+    while os.path.exists(cand):
+        cand = os.path.join(hdir, stem + "_" + str(k) + ".md")
+        k += 1
+    _write_text_atomic(cand, cur)
+    snaps = sorted(f for f in os.listdir(hdir) if f.endswith(".md"))
+    for old in snaps[:-50]:  # 滚动保留，防无限膨胀
+        try:
+            os.remove(os.path.join(hdir, old))
+        except OSError:
+            pass
+    return os.path.basename(cand)
 
 
 def _read_text(md_path):
@@ -182,6 +214,31 @@ class DraftHandler(BaseHTTPRequestHandler):
                 if not p or not os.path.isfile(p):
                     return self._json({"error": "文件不存在"}, 404)
                 return self._json({"path": p, "review": _load_review(p)})
+            if u.path == "/api/history":
+                qs = parse_qs(u.query)
+                p = unquote(qs.get("path", [""])[0])
+                if not p or not os.path.isfile(p):
+                    return self._json({"error": "文件不存在"}, 404)
+                hdir = _history_dir(p)
+                files = []
+                if os.path.isdir(hdir):
+                    for n in os.listdir(hdir):
+                        fp = os.path.join(hdir, n)
+                        if n.endswith(".md") and os.path.isfile(fp):
+                            st = os.stat(fp)
+                            files.append({"name": n, "mtime": int(st.st_mtime),
+                                          "size": st.st_size})
+                files.sort(key=lambda x: -x["mtime"])
+                return self._json({"path": p, "files": files})
+            if u.path == "/api/history_get":
+                qs = parse_qs(u.query)
+                p = unquote(qs.get("path", [""])[0])
+                name = os.path.basename(unquote(qs.get("name", [""])[0]))
+                fp = os.path.join(_history_dir(p), name)
+                # basename 剥掉任何目录成分，只认纯文件名防路径穿越
+                if not name.endswith(".md") or not os.path.isfile(fp):
+                    return self._json({"error": "快照不存在"}, 404)
+                return self._json({"name": name, "content": _read_text(fp)})
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001 —— 兜底别让线程静默死
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -196,6 +253,8 @@ class DraftHandler(BaseHTTPRequestHandler):
                 return self._api_save(data)
             if u.path == "/api/review":
                 return self._api_review(data)
+            if u.path == "/api/rollback":
+                return self._api_rollback(data)
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -224,6 +283,7 @@ class DraftHandler(BaseHTTPRequestHandler):
             return self._json({"error": "文件已被外部修改，保存被拒"
                                        "（可强制覆盖）", "sha256": cur_sha}, 409)
         text = render_blocks(blocks)
+        _snapshot_current(p, text)  # 覆盖前快照当前版，历史可回看可回滚
         _write_text_atomic(p, text)
         review = data.get("review")
         if isinstance(review, dict):
@@ -241,6 +301,19 @@ class DraftHandler(BaseHTTPRequestHandler):
             return self._json({"error": "review 缺失"}, 400)
         _write_review(p, review)
         return self._json({"path": p, "saved": True})
+
+    def _api_rollback(self, data):
+        p = data.get("path", "")
+        name = os.path.basename(data.get("name", ""))  # 只认纯文件名
+        fp = os.path.join(_history_dir(p), name)
+        if not name.endswith(".md") or not os.path.isfile(fp):
+            return self._json({"error": "快照不存在"}, 404)
+        content = _read_text(fp)
+        _snapshot_current(p, content)  # 回滚前先快照现状——回滚本身可撤销
+        _write_text_atomic(p, content)
+        return self._json({"path": p,
+                           "sha256": _sha256_bytes(content.encode("utf-8")),
+                           "bytes": len(content.encode("utf-8"))})
 
 
 # ---------------------------------------------------------------- 入口

@@ -16,6 +16,7 @@
   <button id="btnBrowse">浏览…</button>
   <button id="btnSave" class="primary" disabled>保存 (Ctrl+S)</button>
   <button id="btnAI" disabled>✨ 复制给 AI</button>
+  <button id="btnHist" disabled>📜 历史</button>
   <span id="status"></span>
 </header>
 
@@ -49,6 +50,22 @@
   </div>
   <div id="filelist"></div>
 </div>
+
+<!-- 版本历史 -->
+<div id="histModal">
+  <div class="brow">
+    <strong id="histTitle">📜 历史版本</strong>
+    <span style="flex:1"></span>
+    <button id="btnRollback" class="primary" disabled title="把稿子恢复到选中版本（当前版会先自动快照，可再滚回来）">⤴ 回滚到此版</button>
+    <button id="btnHistClose">关闭</button>
+  </div>
+  <div id="histList"><div class="btip">还没有历史——保存一次改动后这里就有了</div></div>
+  <pre id="histDiff"></pre>
+</div>
+
+<!-- toast 提示 + 批注悬停卡片 -->
+<div id="toast"></div>
+<div id="mktip"></div>
 
 <script src="/app.js"></script>
 </body>

@@ -68,9 +68,9 @@ button:disabled { opacity: .45; cursor: default; }
 .t-blank:empty::before { content: "⏎"; color: #d5d8dd; }
 .blk[data-marked="1"] { cursor: default; }
 
-/* 块悬浮工具条 */
+/* 块悬浮工具条——挂在右侧装订沟（right 负值出正文区），绝不压住正文文字抢点击 */
 .blktools {
-  position: absolute; top: -14px; right: 6px; display: none; gap: 2px;
+  position: absolute; top: 0; right: -44px; display: none; gap: 2px;
   background: var(--paper); border: 1px solid var(--line); border-radius: 6px;
   padding: 1px; box-shadow: 0 2px 8px rgba(0,0,0,.10); z-index: 5;
 }
@@ -154,3 +154,51 @@ button:disabled { opacity: .45; cursor: default; }
 @keyframes flash { 0% { background: var(--hl); } 100% { background: var(--paper); } }
 .blk.flash { animation: flash 1.4s ease-out; }
 .blk.flash[data-marked="1"] { animation: none; }
+
+/* ---------- toast 显性提示 ---------- */
+#toast {
+  position: fixed; top: 56px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  background: #2b2f36; color: #fff; padding: 9px 18px; border-radius: 8px;
+  font-size: 13px; z-index: 80; opacity: 0; pointer-events: none;
+  transition: opacity .18s, transform .18s; max-width: 70vw;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.err { background: #c92a2a; }
+
+/* ---------- 批注悬停卡片 ---------- */
+#mktip {
+  position: fixed; display: none; z-index: 70; max-width: 340px;
+  background: #2b2f36; color: #e6e8eb; font-size: 12px; line-height: 1.55;
+  padding: 9px 12px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  pointer-events: none; white-space: pre-wrap;
+}
+#mktip.on { display: block; }
+#mktip .tt-head { margin-bottom: 4px; }
+#mktip .cbadge { font-size: 11px; padding: 1px 7px; border-radius: 10px; color: #fff; }
+#mktip .ty-comment { background: var(--cmt-ink); color: #103018; }
+#mktip .ty-delete { background: var(--del-ink); }
+#mktip .ty-replace { background: var(--rep-ink); }
+#mktip .ty-highlight { background: #e8a50c; color: #3d2a00; }
+#mktip .tt-quote { color: #a9b1ba; margin: 2px 0; }
+#mktip .tt-sug { color: #74c0fc; }
+#mktip .tt-note { color: #ffe066; }
+
+/* ---------- 版本历史 ---------- */
+#histModal {
+  position: fixed; z-index: 41; display: none; top: 8vh; left: 50%; transform: translateX(-50%);
+  width: min(860px, 94vw); max-height: 82vh; overflow: auto; background: var(--paper);
+  border-radius: 12px; padding: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+#histModal.on { display: block; }
+#histModal .brow { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+#histList .frow.sel { background: var(--accent-soft); outline: 1px solid var(--accent); }
+#histDiff {
+  display: none; margin-top: 10px; padding: 12px; background: #f6f8fa;
+  border: 1px solid var(--line); border-radius: 8px; max-height: 46vh; overflow: auto;
+  font: 12px/1.7 Consolas, "Courier New", monospace; white-space: pre-wrap;
+}
+#histDiff.on { display: block; }
+.dl-del { background: var(--del); color: var(--del-ink); }
+.dl-add { background: var(--cmt); color: var(--cmt-ink); }
+.dl-ctx { color: #57606a; }
