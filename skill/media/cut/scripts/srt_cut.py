@@ -15,6 +15,10 @@
 参数：
   --pad 0.2       每个保留段两头各扩 N 秒，防切字
   --gap 0.4       相邻保留行间隔小于 N 秒就并成一段，避免碎片化微剪
+  --weld-gap 2.0  VAD 边界焊回阈值（秒）：相邻保留条目间隙小于此且 VAD 判定间隙
+                  内是连续人声（ASR 拆条造成的假间隙）就连间隙焊成一段，防条目
+                  边界切字（P1a）；0=关闭。删行留下的大间隙靠这个上限挡——
+                  启发式，阈值需真实素材标定
   --min-inner 0.8 区间内静音细剪阈值（秒），0=关闭（与 jy_draft 同款，成片节奏一致）
   --db            无人声判定：缺省智能模式（FSMN-VAD 人声岛补集，底噪/系统音不算
                   人声，实测 R02 底噪素材 2min 噪声洞全消）；给定数值（如 -35）回退
@@ -27,7 +31,8 @@ import re
 import sys
 from pathlib import Path
 
-from silence_trim import FFMPEG, detect_silences, duration_of, fmt, run  # 同目录，同一套已验证逻辑
+from silence_trim import (FFMPEG, detect_silences, detect_speech, duration_of, fmt,
+                          run)  # 同目录，同一套已验证逻辑
 
 
 def parse_srt(path):
@@ -55,12 +60,70 @@ def parse_srt(path):
     return out
 
 
-def build_spans(entries, dur, pad, gap):
-    """保留行 → 合并后的保留区间 [(s,e)]，clamp 到素材时长。"""
+# —— VAD 边界焊回（P1a 条目边界切字修复）——
+# ASR 把一段连续语音拆成多条时条目边界时间戳撒谎：真词落在相邻条目的间隙里
+# （P1a 案卷 R02 #71→#72 间隙 1.34s 落着真词「个」1711.53-1711.77），±pad 保不住，
+# 间隙被整段丢弃——subtract_intervals 只会往 spans 内部挖洞，永远找不回 spans 之间的料。
+# 焊回：间隙不大且 VAD 判定间隙内是连续人声（不是真静音）→ 两段 span 连间隙合并。
+# 警告：初选删行留下的大间隙不能焊活被删音频——被删行不在输入 srt 里，天然表现为
+# 更大间隙，WELD_GAP 阈值初分可挡；但这是启发式，阈值需真实素材标定，P1a 案卷
+# R02 数据是首个标定点（1711s 附近 1.34s 间隙必须焊回）。误焊进来的口头禅/重录
+# 前遍随后仍会被 cuts.json 词级洞挖掉（挖洞在 build_spans 之后），兜一层。
+WELD_GAP = 2.0        # 焊回的间隙上限（秒）：更大的间隙默认当"删行/真冷场"处理
+VAD_BRIDGE_TOL = 0.2  # 语音岛链容差（秒）：VAD 起止点微裁、词间短停顿切岛（≤此值
+                      # 的岛间缝算连续）；同为待标定参数
+
+
+def _gap_is_voiced(speech, g1, g2):
+    """间隙 (g1, g2) 是否被 VAD 语音岛连续覆盖（岛链横跨两端 → 不是真静音）。
+
+    speech：按时间升序的 [(s,e)]（detect_speech 产出即有序，调用方已 sorted）。
+    判定：与间隙有交集的岛裁到间隙内后须连成一条链——首岛贴住左端、末岛贴住
+    右端、岛间缝隙不超过 VAD_BRIDGE_TOL。真静音（含删行留的洞）在间隙内必有
+    超容差的无人声断档 → False，不焊。
+    """
+    clips = [(max(vs, g1), min(ve, g2)) for vs, ve in speech
+             if ve > g1 and vs < g2]
+    if not clips:
+        return False
+    if clips[0][0] > g1 + VAD_BRIDGE_TOL or clips[-1][1] < g2 - VAD_BRIDGE_TOL:
+        return False
+    reach = clips[0][1]
+    for cs, ce in clips[1:]:
+        if cs > reach + VAD_BRIDGE_TOL:
+            return False
+        reach = max(reach, ce)
+    return True
+
+
+def build_spans(entries, dur, pad, gap, vad_speech=None, weld_gap=WELD_GAP):
+    """保留行 → 合并后的保留区间 [(s,e)]，clamp 到素材时长。
+
+    vad_speech/weld_gap：VAD 边界焊回（P1a，见上方常量注释）。生效点就设在下面
+    的 gap 合并循环里而不是产出后处理：焊回判定在条目级预先做好（bridged），
+    命中的一对无视 --gap 阈值强制合并——区间求并自动把间隙包进来，与"产出后再
+    焊"结果完全等价，却免去条目→span 的反查映射，且 jy_draft/qa_backfill 的
+    4 参调用天然兼容。vad_speech 为 None/空（funasr 缺失、VAD 失败、调用方未
+    提供——jy_draft/qa_backfill 现走此路）→ 行为与旧版完全一致（优雅降级）。
+    """
+    ents = sorted(entries)
+    # 焊回预判（条目级）：bridged 存"与下一条目之间要焊"的条目下标。
+    # 只认 0 < 间隙 < weld_gap：重叠/贴近的条目 --gap 合并本来就兜住；删行留下的
+    # 大间隙（被删行不在输入 srt 里）靠这个上限挡住，不焊活被删音频。
+    bridged = set()
+    if vad_speech and weld_gap > 0:
+        speech = sorted(vad_speech)
+        for i in range(len(ents) - 1):
+            g1, g2 = ents[i][1], ents[i + 1][0]
+            if 0 < g2 - g1 < weld_gap and _gap_is_voiced(speech, g1, g2):
+                bridged.add(i)
+        if bridged:
+            print(f"[srt_cut] VAD 焊回：{len(bridged)} 处相邻条目间隙判定连续人声，"
+                  f"连间隙合并（weld_gap={weld_gap}s，P1a 边界切字修复）")
     spans = []
-    for s, e, _ in sorted(entries):
+    for i, (s, e, _) in enumerate(ents):
         s, e = max(0, s - pad), min(dur, e + pad)
-        if spans and s <= spans[-1][1] + gap:
+        if spans and (s <= spans[-1][1] + gap or i - 1 in bridged):
             spans[-1] = (spans[-1][0], max(spans[-1][1], e))
         else:
             spans.append((s, e))
@@ -219,7 +282,17 @@ def process_one(video: Path, srt_path: Path, args):
     """单素材处理：剪切稿 → 保留区间（挖洞+静音细剪）→ 粗剪 mp4 + 对齐 srt。"""
     entries = parse_srt(str(srt_path))
     dur = duration_of(video)
-    spans = build_spans(entries, dur, args.pad, args.gap)
+    # VAD 焊回（P1a）：独立取一次人声岛喂给 build_spans（<stem>.vad.json 缓存与
+    # 细剪共享，不重复开销）；VAD 不可用返回 None → build_spans 自动降级为旧行为。
+    # --weld-gap 0 整体关闭。--db 能量模式不拦焊回：焊回要的是"是不是人声"的
+    # 判定（能量分不开人声和噪声，见 P1 案卷），detect_speech 自己兜降级。
+    speech = None
+    if args.weld_gap > 0:
+        speech = detect_speech(str(video))
+        if speech is None:
+            print(f"[srt_cut] {video.name} 提示：VAD 不可用——边界焊回跳过，行为同旧版")
+    spans = build_spans(entries, dur, args.pad, args.gap,
+                        vad_speech=speech, weld_gap=args.weld_gap)
 
     cuts_path = find_cuts_json(video, srt_path)
     if cuts_path:
@@ -278,6 +351,10 @@ def main():
     ap.add_argument("--out-dir", default=None, help="批量模式输出目录（缺省输出到各素材旁）")
     ap.add_argument("--pad", type=float, default=0.2)
     ap.add_argument("--gap", type=float, default=0.4)
+    ap.add_argument("--weld-gap", type=float, default=WELD_GAP,
+                    help="VAD 边界焊回的间隙阈值（秒）：相邻保留条目间隙小于此且 "
+                         "VAD 判连续人声才焊回（P1a 边界切字修复）；0=关闭。"
+                         "删行留下的大间隙靠它挡——阈值需真实素材标定")
     ap.add_argument("--min-inner", type=float, default=0.8,
                     help="区间内静音细剪阈值（秒），0=关闭")
     ap.add_argument("--db", type=float, default=None,

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from srt_cut import (build_spans, disp_len, load_cuts, parse_srt, rebase_srt,
                      subtract_intervals, wrap_zh)
-from silence_trim import detect_silences  # 区间内静音细剪用同一套检测
+from silence_trim import detect_silences, detect_speech  # 细剪与 P1a 焊回用同一套检测
 
 DRAFT_ROOT = Path.home() / "AppData/Local/JianyingPro/User Data/Projects/com.lveditor.draft"
 STATE_FILE = Path.home() / ".media_cut_draft_root"  # 记住用户在剪映里改过的草稿位置
@@ -136,7 +136,9 @@ def process_segment(video: Path, cut_srt: Path, args, anno_offset=0.0):
     entries = parse_srt(str(cut_srt))
     material = globals()["VideoMaterial"](str(video))
     total_s = material.duration / 1e6
-    spans = build_spans(entries, total_s, args.pad, args.gap)
+    # P1a 焊回：相邻保留条目间隙 < WELD_GAP 且 VAD 岛横跨两端则不切（detect_speech 失败返回 None 自动降级旧行为）
+    spans = build_spans(entries, total_s, args.pad, args.gap,
+                        vad_speech=detect_speech(video))
     n_coarse = len(spans)
 
     holes_total = 0

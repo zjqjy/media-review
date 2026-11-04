@@ -60,9 +60,10 @@ def cut_to_source_map(ws: Path, seg: str):
     video = ws / "1_原始" / f"{seg}.mp4"
     cut_srt = ws / "3_转录初选" / f"{seg}_剪切稿.srt"
     entries = parse_srt_plain(str(cut_srt))
-    from silence_trim import duration_of
+    from silence_trim import detect_speech, duration_of
     dur = duration_of(video)
-    spans = build_spans(entries, dur, 0.2, 0.4)
+    # P1a 焊回：与 srt_cut/jy_draft 同款——间隙被 VAD 岛横跨的相邻条目不再被切（失败自动降级）
+    spans = build_spans(entries, dur, 0.2, 0.4, vad_speech=detect_speech(video))
     cuts_path = find_cuts_json(video, cut_srt)
     if cuts_path:
         spans = subtract_intervals(spans, load_cuts(cuts_path), pre_roll=0.3, keep=0.1)
