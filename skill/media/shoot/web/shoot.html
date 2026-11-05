@@ -26,6 +26,7 @@
       <label><input type="checkbox" id="chkAll"> 全选（当前筛选内）</label>
       <span id="chkCnt" class="cnt"></span>
       <span class="spacer"></span>
+      <button id="btnAddFoot" title="手动添加素材：浏览项目里的文件直接登记进素材表（不必按命名约定、不必跑素材回收.py），可顺手挂批注">＋添加素材</button>
       <button id="btnConfirm" class="primary" title="把勾选素材全部置为「选用」——高置信（filename / ai≥0.75）已预勾选">确认全部勾选 → 选用</button>
       <button id="btnClearChk" title="清空勾选">清空勾选</button>
       <span id="footCnt" class="cnt"></span>
@@ -54,6 +55,25 @@
     <button id="btnLinkClose">关闭</button>
   </div>
   <div id="linkList"></div>
+</div>
+
+<!-- 手动添加素材弹层（P8）：浏览项目目录勾文件，登记进素材表并挂批注 -->
+<div id="addModal" class="modal">
+  <div class="mhead"><strong>添加素材</strong>
+    <span class="cnt">勾选项目里的素材文件，登记后即出现在右侧素材卡</span>
+    <span class="spacer"></span>
+    <button id="btnAddSave" class="primary">添加勾选文件</button>
+    <button id="btnAddClose">关闭</button>
+  </div>
+  <div class="brow">
+    <input id="addDir" spellcheck="false" placeholder="目录路径（默认项目根）">
+    <button id="btnAddUp" title="上一级">↑</button>
+    <button id="btnAddGo">刷新</button>
+  </div>
+  <div id="addList"><div class="btip">加载中…</div></div>
+  <div class="brow">
+    <span class="alab">挂到批注：</span><span id="addAnns" class="chips"></span>
+  </div>
 </div>
 
 <!-- 缺拍清单弹层 -->

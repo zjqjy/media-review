@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,11 +31,11 @@ class ShootServer(ThreadingHTTPServer):
     # 流量随机分（僵尸服务吞写事故的根因）。关掉 reuse，爬位 +1 才能触发。
     allow_reuse_address = False
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from 素材回收 import (  # noqa: E402 —— 复用同目录的旁车定位/匹配内核/时长探测
-    find_sidecar, probe_duration, VIDEO_EXTS)
+    find_sidecar, probe_duration, FOOTAGE_EXTS, VIDEO_EXTS)
 import 剪辑交接  # noqa: E402 —— S2-D：补制任务生成 + cut 输入编译（05_剪辑交接）
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -221,6 +222,105 @@ def upsert_editnote(state, footage_id, note):
     return entry
 
 
+def _clean_path_arg(raw):
+    """防御性清路径：首尾空白 + Windows「复制文件地址」的引号（前端也清，双保险）。"""
+    s = str(raw or "").strip()
+    return s.strip("\"'\u201c\u201d\u2018\u2019\u300c\u300d").strip()
+
+
+def add_footage(state, files, ann_ids):
+    """手动添加素材（P8：不跑素材回收.py 也能在面板直接登记）。
+
+    files: 路径字符串数组，必须真实存在于盘上；旁车 file 字段一律存**相对项目根**
+    的 posix 风格（与素材回收/剪辑交接/校验器同基准）；项目根外的文件拒收——
+    05_剪辑交接按项目根复制素材，根外的素材交接会找不到。
+    ann_ids: 可选，登记时立即挂接的批注 id（必须是旁车已有 id，不发明新 id）。
+    同一文件（按解析后的绝对路径判重）重复添加 → 跳过并给原因；素材 id 从现有
+    footage 最大号顺延（f01 起，不复用）。
+    返回 (added, skipped)：added 为新条目清单（match=manual, state=candidate），
+    skipped 为 [{file, reason}]。结构性参数错抛 ValueError 给前端 400。
+    """
+    if not isinstance(files, list) or not files:
+        raise ValueError("files 必须是非空路径数组")
+    if ann_ids is None:
+        ann_ids = []
+    if not isinstance(ann_ids, list) or any(not isinstance(x, str) for x in ann_ids):
+        raise ValueError("ann_ids 必须是批注 id 字符串数组")
+    known = {str(a.get("id")) for a in state.get("annotations", []) if a.get("id")}
+    unknown = sorted({x for x in ann_ids if x not in known})
+    if unknown:
+        raise ValueError(f"未知批注 id: {unknown}（annotation id 定稿后永不变，"
+                         f"不许发明新 id）")
+    root = Path(CTX["project_root"]).resolve()
+    by_abs = {}
+    for f in state.get("footage", []):
+        rel = str(f.get("file", ""))
+        if not rel:
+            continue
+        try:
+            by_abs[str(Path(root, *rel.split("/")).resolve())] = str(f.get("id"))
+        except OSError:
+            continue
+    mx = 0
+    for f in state.get("footage", []):
+        m = re.match(r"^f(\d+)$", str(f.get("id") or ""))
+        if m:
+            mx = max(mx, int(m.group(1)))
+    added, skipped = [], []
+    for raw in files:
+        p = Path(_clean_path_arg(raw))
+        if not p.is_absolute():  # 相对路径按项目根解析（与旁车 file 字段同基准）
+            p = root / p
+        abs_p = p.expanduser().resolve()
+        if not abs_p.is_file():
+            skipped.append({"file": str(raw), "reason": "文件不存在"})
+            continue
+        try:
+            rel = abs_p.relative_to(root)
+        except ValueError:
+            raise ValueError(f"素材必须在项目根内（剪辑交接按项目根复制素材）: "
+                             f"{raw}")
+        if str(abs_p) in by_abs:
+            skipped.append({"file": abs_p.name,
+                            "reason": f"已在素材表（{by_abs[str(abs_p)]}）"})
+            continue
+        mx += 1
+        entry = {"id": f"f{mx:02d}", "file": rel.as_posix(),
+                 "ann_ids": list(dict.fromkeys(ann_ids)),
+                 "state": "candidate", "match": "manual", "note": ""}
+        state.setdefault("footage", []).append(entry)
+        by_abs[str(abs_p)] = entry["id"]
+        added.append(entry)
+    return added, skipped
+
+
+def browse_dir(d=None):
+    """GET /api/browse 的内核：列目录下的子目录与素材文件（不递归）。
+    dir 缺省用当前项目根。返回 {cur, parent, dirs, files}，文件带 size/mtime。"""
+    base = Path(_clean_path_arg(d) or CTX["project_root"] or "")
+    if not str(base):
+        raise ValueError("未打开项目：请先在页面打开项目，或显式给 dir")
+    if not base.is_dir():
+        raise ValueError(f"目录不存在: {base}")
+    base = base.resolve()
+    dirs, files = [], []
+    for e in sorted(base.iterdir(), key=lambda x: x.name.lower()):
+        try:
+            if e.is_dir():
+                if not e.name.startswith("."):
+                    dirs.append(e.name)
+            elif e.suffix.lower() in FOOTAGE_EXTS:
+                st = e.stat()
+                files.append({"name": e.name, "size": st.st_size,
+                              "mtime": int(st.st_mtime)})
+        except OSError:  # 个别项探不到（权限/占用）跳过，别让整个列表挂掉
+            continue
+    parent = base.parent
+    return {"cur": str(base),
+            "parent": str(parent) if parent != base else None,
+            "dirs": dirs, "files": files}
+
+
 def missing_anns(state):
     """缺拍清单：没有任何 footage 关联的**人工拍摄**批注（拍摄口径）。
 
@@ -362,6 +462,9 @@ class ShootHandler(BaseHTTPRequestHandler):
                     tasks = load_state().get("tasks", [])
                     return self._json({"tasks": tasks,
                                        "task_count": len(tasks)})
+            if u.path == "/api/browse":
+                q = parse_qs(u.query)
+                return self._json(browse_dir((q.get("dir") or [""])[0]))
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001 —— 兜底别让线程静默死
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -378,6 +481,8 @@ class ShootHandler(BaseHTTPRequestHandler):
                                        "state": load_state()})
             if u.path == "/api/footage":
                 return self._api_footage(data)
+            if u.path == "/api/footage/add":
+                return self._api_footage_add(data)
             if u.path == "/api/editnote":
                 return self._api_editnote(data)
             if u.path == "/api/tasks/generate":
@@ -417,6 +522,28 @@ class ShootHandler(BaseHTTPRequestHandler):
                                "md_sha256": cur})
 
     # —— 以下 S2-D 新增路由（剪辑批注 / 补制任务 / cut 输入编译）——
+
+    def _api_footage_add(self, data):
+        """手动添加素材（P8）。body: {files:[绝对/相对路径], ann_ids?:[批注id]}
+        ——浏览弹层勾文件登记进素材表并顺手挂接，不依赖素材回收.py。
+        sha 拦截照走；同文件重复添加跳过并给原因（幂等）。"""
+        with LOCK:
+            if not CTX["project_root"]:
+                return self._json({"error": "未设置项目"}, 400)
+            state = load_state()
+            blocked = self._sha_guard(state)
+            if blocked:
+                return blocked
+            try:
+                added, skipped = add_footage(state, data.get("files"),
+                                             data.get("ann_ids"))
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            if added:
+                _write_text_atomic(CTX["sidecar_path"],
+                                   json.dumps(state, ensure_ascii=False, indent=2))
+            return self._json({"added": added, "skipped": skipped,
+                               "state": state})
 
     def _sha_guard(self, state):
         """新路由共用的定稿指纹拦截：md 被外部改动 → 409 拒写（语义同

@@ -233,7 +233,7 @@ function renderFootage() {
   if (!all.length) {
     grid.innerHTML = '<div class="empty-tip">'
       + (S.project
-          ? "旁车里还没有素材——先跑 素材回收.py：<br>python 素材回收.py &lt;项目根&gt;"
+          ? "旁车里还没有素材——点上方「＋添加素材」手动登记，<br>素材按命名约定拍回来时也可批量匹配：<code>python 素材回收.py &lt;项目根&gt;</code>"
           : "打开项目后，这里显示素材卡")
       + "</div>";
     return;
@@ -387,7 +387,7 @@ function closeLink() {
   S.linkFid = null;
 }
 $("#btnLinkClose").addEventListener("click", closeLink);
-overlay.addEventListener("click", closeLink);
+overlay.addEventListener("click", () => { closeLink(); closeAdd(); });
 $("#btnLinkSave").addEventListener("click", () => {
   if (!S.linkFid) return closeLink();
   const ids = [...$("#linkList").querySelectorAll("input:checked")]
@@ -395,6 +395,111 @@ $("#btnLinkSave").addEventListener("click", () => {
   postUpdates([{ footage_id: S.linkFid, ann_ids: ids, match: "manual" }],
     `已保存关联（${ids.length} 条批注）`);
   closeLink();
+});
+
+/* ================= 手动添加素材（P8）：浏览项目目录勾文件登记 =================
+ * 素材没按命名约定拍回来时，人直接在面板里添加——不必跑素材回收.py。
+ * 登记即进素材表（match=manual 候选），可顺手挂批注；重复文件幂等跳过。 */
+const addModal = $("#addModal");
+let addCur = null;                     // 当前浏览目录（服务端返回的规范路径）
+
+function joinPath(dir, name) {
+  return dir.replace(/[\\/]+$/, "") + "/" + name;
+}
+function addChips() {
+  /* 挂接目标批注：默认勾当前筛选中的那条 */
+  const wrap = $("#addAnns");
+  const anns = S.state?.annotations || [];
+  if (!anns.length) { wrap.textContent = "（旁车还没有呈现批注）"; return; }
+  wrap.innerHTML = "";
+  for (const a of anns) {
+    const lb = document.createElement("label");
+    lb.innerHTML = `<input type="checkbox" value="${esc(a.id)}"`
+      + (a.id === S.selAnn ? " checked" : "") + `>${KIND_ICON[a.kind] || "🎬"} ${esc(a.id)}`;
+    wrap.appendChild(lb);
+  }
+}
+async function browseAdd(dir) {
+  $("#addList").innerHTML = '<div class="btip">读取中…</div>';
+  try {
+    const d = await api("/api/browse" + (dir ? "?dir=" + encodeURIComponent(dir) : ""));
+    addCur = d.cur;
+    $("#addDir").value = d.cur;
+    const wrap = $("#addList");
+    wrap.innerHTML = "";
+    if (d.parent) {
+      const up = document.createElement("div");
+      up.className = "dirrow";
+      up.textContent = "📁 ..（上一级）";
+      up.addEventListener("click", () => browseAdd(d.parent));
+      wrap.appendChild(up);
+    }
+    for (const name of d.dirs) {
+      const row = document.createElement("div");
+      row.className = "dirrow";
+      row.textContent = "📁 " + name;
+      row.addEventListener("click", () => browseAdd(joinPath(d.cur, name)));
+      wrap.appendChild(row);
+    }
+    for (const f of d.files) {
+      const row = document.createElement("label");
+      row.className = "frow";
+      row.innerHTML = `<input type="checkbox" value="${esc(f.name)}">`
+        + `<span class="fname">${esc(f.name)}</span>`
+        + `<span class="fsize">${(f.size / 1048576).toFixed(1)} MB</span>`;
+      wrap.appendChild(row);
+    }
+    if (!d.files.length && !d.dirs.length) {
+      wrap.innerHTML = '<div class="btip">这个目录没有素材文件'
+        + '（mp4/mov/avi/mkv/jpg/jpeg/png/webp）</div>';
+    }
+  } catch (e) {
+    $("#addList").innerHTML = `<div class="btip">读取失败: ${esc(e.message)}</div>`;
+  }
+}
+async function openAdd() {
+  if (!S.project) { toast("先打开项目"); return; }
+  addModal.classList.add("on"); overlay.classList.add("on");
+  addChips();
+  browseAdd(S.project);
+}
+function closeAdd() {
+  addModal.classList.remove("on"); overlay.classList.remove("on");
+}
+$("#btnAddFoot").addEventListener("click", openAdd);
+$("#btnAddClose").addEventListener("click", closeAdd);
+$("#btnAddGo").addEventListener("click", () => browseAdd($("#addDir").value));
+$("#addDir").addEventListener("keydown", e => {
+  if (e.key === "Enter") browseAdd($("#addDir").value);
+});
+$("#btnAddUp").addEventListener("click", () => {
+  if (!addCur) return;
+  const i = Math.max(addCur.lastIndexOf("\\"), addCur.lastIndexOf("/"));
+  if (i > 3) browseAdd(addCur.slice(0, i));
+});
+$("#btnAddSave").addEventListener("click", async () => {
+  const names = [...$("#addList").querySelectorAll("input:checked")]
+    .map(x => x.value);
+  if (!names.length) { toast("先勾选素材文件"); return; }
+  const annIds = [...$("#addAnns").querySelectorAll("input:checked")]
+    .map(x => x.value);
+  const files = names.map(n => joinPath(addCur, n));
+  try {
+    const r = await api("/api/footage/add", { files, ann_ids: annIds });
+    S.state = r.state;
+    closeAdd();
+    await loadProbe();
+    renderAnn(); renderFootage();
+    const skip = (r.skipped || []).map(s => `${s.file}（${s.reason}）`).join("、");
+    if (r.added.length)
+      toast(`已添加 ${r.added.length} 段素材` + (skip ? "；跳过: " + skip : ""));
+    else if (skip)
+      toast("没有新增——" + skip, true);
+    else
+      toast("没有可添加的文件", true);
+  } catch (e) {
+    toast((e.status === 409 ? "写回被拒：" : "添加失败：") + e.message, true);
+  }
 });
 
 /* ================= 缺拍清单 ================= */

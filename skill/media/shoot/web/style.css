@@ -202,3 +202,24 @@ button:disabled { opacity: .45; cursor: default; }
 }
 #toast.on { opacity: 1; }
 #toast.err { background: #c92a2a; }
+
+/* —— 手动添加素材弹层（P8） —— */
+.brow { display: flex; gap: 6px; margin: 10px 0; align-items: center; }
+.brow input { flex: 1; }
+.alab { font-size: 13px; color: var(--mute); white-space: nowrap; }
+#addList { border: 1px solid var(--line); border-radius: 8px;
+  max-height: 300px; min-height: 120px; overflow: auto; }
+.dirrow, #addList .frow { display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  cursor: pointer; font-size: 13px; }
+.dirrow { color: var(--mute); }
+.dirrow:hover { background: var(--accent-soft); color: var(--accent); }
+#addList .frow:hover { background: #f6f8fa; }
+#addList .fname { flex: 1; word-break: break-all; }
+#addList .fsize { color: var(--mute); font-size: 12px; white-space: nowrap; }
+#addAnns { display: flex; flex-wrap: wrap; gap: 6px; }
+#addAnns label { display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px;
+  font-size: 12px; cursor: pointer; }
+#addAnns label:has(input:checked) { border-color: var(--accent);
+  background: var(--accent-soft); }

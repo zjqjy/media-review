@@ -340,6 +340,87 @@ class TestServerApi(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read().decode("utf-8"))
 
+    def test_手动添加素材(self):
+        """P8：面板不跑 CLI 也能登记素材——/api/footage/add + /api/browse。"""
+        root = make_project(self._tmp.name,
+                            files=["拍摄素材/R01_a.mp4", "随手拍_IMG.mp4"])
+        s, d = self._req("POST", "/api/project", {"project": str(root)})
+        self.assertEqual(s, 200)
+        # 浏览：项目根列出子目录与素材文件
+        s, d = self._req("GET", "/api/browse")
+        self.assertEqual(s, 200)
+        self.assertEqual(d["dirs"], ["拍摄素材"])
+        names = {f["name"] for f in d["files"]}
+        self.assertEqual(names, {"随手拍_IMG.mp4"})   # 根下只有这一个素材文件
+        # 添加：根外素材拒收（400）
+        outside = Path(self._tmp.name).parent / "在项目根外面.mp4"
+        outside.write_bytes(b"")
+        self.addCleanup(outside.unlink, missing_ok=True)
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": [str(outside)], "ann_ids": ["R01"]})
+        self.assertEqual(s, 400)
+        self.assertIn("项目根内", d["error"])
+        # 添加：正常登记 + 顺手挂 R01，id 从 f01 顺延（素材表当前为空）
+        f1 = root / "拍摄素材" / "R01_a.mp4"
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": [str(f1), str(root / "随手拍_IMG.mp4")],
+                          "ann_ids": ["R01"]})
+        self.assertEqual(s, 200)
+        self.assertEqual(len(d["added"]), 2)
+        self.assertEqual(d["added"][0]["id"], "f01")
+        self.assertEqual(d["added"][0]["file"], "拍摄素材/R01_a.mp4")
+        self.assertEqual(d["added"][0]["match"], "manual")
+        self.assertEqual(d["added"][0]["state"], "candidate")
+        self.assertEqual(d["added"][0]["ann_ids"], ["R01"])
+        self.assertEqual(d["added"][1]["ann_ids"], ["R01"])  # 两个都挂上
+        self.assertEqual(d["skipped"], [])
+        self.assertEqual(read_state(root)["footage"][-2:],
+                         d["added"])                      # 落盘一致
+        # 幂等：同一文件再添加 → 跳过并给原因；id 继续顺延不复用
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": [str(f1)], "ann_ids": []})
+        self.assertEqual(s, 200)
+        self.assertEqual(d["added"], [])
+        self.assertEqual(d["skipped"][0]["reason"], "已在素材表（f01）")
+        # 不存在的文件 → 跳过给原因，不炸整批
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": ["没有这个文件.mp4"], "ann_ids": ["R01"]})
+        self.assertEqual(s, 200)
+        self.assertEqual(d["added"], [])
+        self.assertEqual(d["skipped"][0]["reason"], "文件不存在")
+        # 未知批注 id → 400
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": [str(f1)], "ann_ids": ["R99"]})
+        self.assertEqual(s, 400)
+        self.assertIn("R99", d["error"])
+        # files 缺失/空 → 400
+        s, d = self._req("POST", "/api/footage/add", {"files": []})
+        self.assertEqual(s, 400)
+
+    def test_手动添加_id顺延_相对路径_带引号净化(self):
+        """id 不与已有 footage 冲突；相对路径按项目根解析；引号路径净化。"""
+        root = make_project(self._tmp.name, files=["03_实拍/R01_x.mp4"],
+                            footage=[{"id": "f01", "file": "03_实拍/R01_x.mp4",
+                                      "ann_ids": ["R01"], "state": "candidate",
+                                      "match": "filename", "note": ""}])
+        s, d = self._req("POST", "/api/project", {"project": str(root)})
+        self.assertEqual(s, 200)
+        newp = root / "03_实拍" / "R02_y.mp4"
+        newp.write_bytes(b"")
+        # 带引号的 Windows「复制文件地址」风格路径也能进
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": [f'"{newp}"'], "ann_ids": ["R02"]})
+        self.assertEqual(s, 200)
+        self.assertEqual(len(d["added"]), 1)
+        self.assertEqual(d["added"][0]["id"], "f02")        # f01 已占，顺延
+        self.assertEqual(d["added"][0]["file"], "03_实拍/R02_y.mp4")
+        # 纯相对路径（相对项目根）等价
+        s, d = self._req("POST", "/api/footage/add",
+                         {"files": ["03_实拍/R02_y.mp4"], "ann_ids": []})
+        self.assertEqual(s, 200)
+        self.assertEqual(d["added"], [])
+        self.assertIn("已在素材表（f02）", d["skipped"][0]["reason"])
+
     def test_项目校验与state与批量写回(self):
         root = make_project(self._tmp.name, files=["拍摄素材/R01_a.mp4"])
         self.assertEqual(recycle.run(str(root)), 0)   # 先跑匹配器，footage 才有条目
