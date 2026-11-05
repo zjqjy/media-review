@@ -17,7 +17,8 @@ const S = {
   project: null,                    // 项目根（服务端内存态，重启即失）
   state: null,                      // shoot.json 全量
   probe: new Map(),                 // file -> {exists, duration}
-  selAnn: null,                     // 左列点中的批注 id（过滤右列）
+  selAnn: null,                     // 左列点中的批注 id（高亮+筛选基准）
+  footFilter: "all",                // 素材池筛选：all | linked | unlinked（P11）
   checked: new Set(),               // 勾选的 footage id（批量确认用）
   linkFid: null,                    // 正在挂接的 footage id
 };
@@ -235,12 +236,42 @@ function renderAnn() {
   }
 }
 
-/* ================= 右列：素材卡 ================= */
+/* ================= 右列：素材卡（工作区素材池，P11） =================
+ * 点批注不再把右列关小黑屋——默认仍显示全部素材，已挂所选批注的高亮；
+ * 筛选器（全部/已挂/未挂）只是浏览辅助。多对多：一段素材可挂多条批注，
+ * 一条批注可挂工作区任意多段素材。 */
+function linkedCount(filter, selAnn) {
+  const all = S.state?.footage || [];
+  return all.filter(f => selAnn
+    ? (f.ann_ids || []).includes(selAnn) === (filter === "linked")
+    : (f.ann_ids || []).length > 0 === (filter === "linked")).length;
+}
+
 function renderFootage() {
   const grid = $("#footGrid");
   const all = S.state?.footage || [];
-  const list = S.selAnn
-    ? all.filter(f => (f.ann_ids || []).includes(S.selAnn)) : all;
+  // —— 筛选器（chips）：全部 / 已挂 / 未挂（选中批注时相对它，否则相对任意批注）
+  const fbar = $("#footFilters");
+  fbar.innerHTML = "";
+  const mkBtn = (key, label) => {
+    const b = document.createElement("button");
+    b.className = "ffbtn" + (S.footFilter === key ? " on" : "");
+    const n = key === "all" ? all.length : linkedCount(key, S.selAnn);
+    b.textContent = `${label} ${n}`;
+    b.addEventListener("click", () => { S.footFilter = key; renderFootage(); });
+    fbar.appendChild(b);
+  };
+  mkBtn("all", "全部素材");
+  mkBtn("linked", S.selAnn ? `已挂 ${S.selAnn}` : "已挂批注");
+  mkBtn("unlinked", "未挂");
+  // —— 列表
+  let list = all;
+  if (S.footFilter === "linked")
+    list = all.filter(f => S.selAnn
+      ? (f.ann_ids || []).includes(S.selAnn) : (f.ann_ids || []).length > 0);
+  else if (S.footFilter === "unlinked")
+    list = all.filter(f => S.selAnn
+      ? !(f.ann_ids || []).includes(S.selAnn) : !(f.ann_ids || []).length);
   $("#footCnt").textContent = all.length
     ? `素材 ${list.length === all.length ? all.length : `${list.length}/${all.length}`}`
     : "";
@@ -255,7 +286,13 @@ function renderFootage() {
     return;
   }
   if (!list.length) {
-    grid.innerHTML = '<div class="empty-tip">这条批注还没挂任何素材——点素材卡的「+关联」挂过来</div>';
+    grid.innerHTML = '<div class="empty-tip">'
+      + (S.footFilter === "linked"
+          ? (S.selAnn
+              ? `「${esc(S.selAnn)}」还没挂任何素材——工作区共 ${all.length} 段可挂：切回「全部素材」，点素材卡「+关联」`
+              : "还没有素材挂到任何批注")
+          : "全部素材都挂上了 ✓")
+      + "</div>";
     return;
   }
   grid.innerHTML = "";
@@ -270,7 +307,8 @@ function footCard(f) {
   const card = document.createElement("div");
   card.className = "fcard"
     + (f.state === "selected" ? " is-sel" : "")
-    + (pr.exists === false ? " is-missing" : "");
+    + (pr.exists === false ? " is-missing" : "")
+    + (S.selAnn && (f.ann_ids || []).includes(S.selAnn) ? " is-hilite" : "");
   card.innerHTML =
     '<div class="fhead">'
     + `<input type="checkbox" class="fchk" data-fid="${esc(f.id)}"`
@@ -336,7 +374,7 @@ function footCard(f) {
   const chips = card.querySelector(".fchips");
   for (const aid of f.ann_ids || []) {
     const chip = document.createElement("button");
-    chip.className = "chip";
+    chip.className = "chip" + (aid === S.selAnn ? " on" : "");
     chip.textContent = aid;
     chip.title = "点它过滤看这条批注";
     chip.addEventListener("click", () => {

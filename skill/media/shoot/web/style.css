@@ -230,3 +230,13 @@ button:disabled { opacity: .45; cursor: default; }
 .ttool { font-size: 11px; color: var(--mute); border: 1px dashed var(--line);
   border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 #toolmap { margin-top: 8px; font-size: 12px; color: var(--mute); }
+
+/* —— P11 工作区素材池：全部/已挂/未挂筛选 + 选中批注高亮 —— */
+#footFilters { display: flex; gap: 6px; align-items: center; }
+#footFilters .ffbtn { font-size: 12px; padding: 2px 10px; border-radius: 999px; }
+#footFilters .ffbtn.on { border-color: var(--accent); color: var(--accent);
+  background: var(--accent-soft); }
+.fcard.is-hilite { border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft); }
+.chip.on { border-color: var(--accent); color: var(--accent);
+  background: var(--accent-soft); font-weight: 700; }
