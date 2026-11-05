@@ -223,3 +223,10 @@ button:disabled { opacity: .45; cursor: default; }
   font-size: 12px; cursor: pointer; }
 #addAnns label:has(input:checked) { border-color: var(--accent);
   background: var(--accent-soft); }
+
+/* —— P9：剪辑批注条可点击再编辑 + 任务行工具挂靠徽标 —— */
+.enote.has { cursor: pointer; }
+.enote.has:hover { background: #fff3bf; }
+.ttool { font-size: 11px; color: var(--mute); border: 1px dashed var(--line);
+  border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+#toolmap { margin-top: 8px; font-size: 12px; color: var(--mute); }

@@ -24,6 +24,12 @@ const S = {
 const KIND_ICON = { manual: "🎬", ai: "🤖" };
 const KIND_NAME = { manual: "人工拍摄", ai: "AI 制作" };
 const TASK_ICON = { reshoot: "🎥", card: "🃏", motion: "✨", aigen: "🖼" };
+const TASK_TOOL = {
+  card: "cards 子技能（HTML 卡）",
+  motion: "vibe-motion（Remotion 动效）",
+  aigen: "aigen 子技能（Seedream 生图）",
+  reshoot: "人工补拍",
+};
 
 async function api(path, body) {
   const opt = body !== undefined
@@ -290,9 +296,16 @@ function footCard(f) {
   });
   const ebtn = card.querySelector(".act-enote");
   const ein = card.querySelector(".enote-in");
-  ebtn.addEventListener("click", () => {
+  const ediv = card.querySelector(".enote");
+  const openEnote = () => {
     if (ein.classList.toggle("on")) { ein.focus(); ein.select(); }
-  });
+  };
+  // 批注条本身就是编辑入口（P9：保存后想再改，点黄条即可，不用找小按钮）
+  ebtn.addEventListener("click", openEnote);
+  if (en) {
+    ediv.title = "点它修改剪辑批注";
+    ediv.addEventListener("click", openEnote);
+  }
   ein.addEventListener("change", () => {
     ein.classList.remove("on");
     if (ein.value === (en ? en.note : "")) return;
@@ -587,6 +600,8 @@ function renderTasks() {
       `<span class="ticon" title="${esc(t.type)}">${TASK_ICON[t.type] || "❓"}</span>`
       + `<span class="tref" title="对应呈现批注">${esc(t.ref)}</span>`
       + `<span class="ttype">${esc(t.type)}</span>`
+      + `<span class="ttool" title="工具挂靠——这个任务由 media 技能栈的哪个工具执行">🔧 `
+      + esc(TASK_TOOL[t.type] || "按指令自选工具") + "</span>"
       + taskStateBadge(t.state)
       + (t.output
           ? `<span class="tout" title="产物相对路径">${esc(t.output)}</span>`
