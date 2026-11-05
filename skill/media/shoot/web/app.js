@@ -247,6 +247,18 @@ function linkedCount(filter, selAnn) {
     : (f.ann_ids || []).length > 0 === (filter === "linked")).length;
 }
 
+function footList() {
+  /* 当前筛选下的素材列表（renderFootage 与预览共用一份口径） */
+  const all = S.state?.footage || [];
+  if (S.footFilter === "linked")
+    return all.filter(f => S.selAnn
+      ? (f.ann_ids || []).includes(S.selAnn) : (f.ann_ids || []).length > 0);
+  if (S.footFilter === "unlinked")
+    return all.filter(f => S.selAnn
+      ? !(f.ann_ids || []).includes(S.selAnn) : !(f.ann_ids || []).length);
+  return all;
+}
+
 function renderFootage() {
   const grid = $("#footGrid");
   const all = S.state?.footage || [];
@@ -265,13 +277,7 @@ function renderFootage() {
   mkBtn("linked", S.selAnn ? `已挂 ${S.selAnn}` : "已挂批注");
   mkBtn("unlinked", "未挂");
   // —— 列表
-  let list = all;
-  if (S.footFilter === "linked")
-    list = all.filter(f => S.selAnn
-      ? (f.ann_ids || []).includes(S.selAnn) : (f.ann_ids || []).length > 0);
-  else if (S.footFilter === "unlinked")
-    list = all.filter(f => S.selAnn
-      ? !(f.ann_ids || []).includes(S.selAnn) : !(f.ann_ids || []).length);
+  const list = footList();
   $("#footCnt").textContent = all.length
     ? `素材 ${list.length === all.length ? all.length : `${list.length}/${all.length}`}`
     : "";
@@ -323,6 +329,7 @@ function footCard(f) {
     + "</div>"
     + '<div class="fchips"></div>'
     + '<div class="facts">'
+    +   '<button class="act-pv" title="预览素材：视频可拖进度条，←/→ 连续看">▶预览</button>'
     +   '<button class="act-link" title="挂到呈现批注（多对多）">+关联</button>'
     +   `<button class="act-state" title="候选 / 选用切换">${f.state === "selected" ? "↩ 退回候选" : "✓ 选用"}</button>`
     +   '<button class="act-enote" title="剪辑批注：这段素材怎么进成片——截哪段 / 什么效果 / 接在哪">✂️批注</button>'
@@ -336,6 +343,9 @@ function footCard(f) {
     $("#chkCnt").textContent = S.checked.size ? `已勾选 ${S.checked.size}` : "";
     $("#btnConfirm").disabled = !S.checked.size;
   });
+  card.querySelector(".act-pv").addEventListener("click", () => openPreview(f.id));
+  const fnEl = card.querySelector(".fname");   // 点文件名也能预览
+  fnEl.addEventListener("click", () => openPreview(f.id));
   card.querySelector(".act-link").addEventListener("click", () => openLink(f.id));
   card.querySelector(".act-state").addEventListener("click", () => {
     postUpdates([{ footage_id: f.id,
@@ -448,7 +458,7 @@ function closeLink() {
   S.linkFid = null;
 }
 $("#btnLinkClose").addEventListener("click", closeLink);
-overlay.addEventListener("click", () => { closeLink(); closeAdd(); });
+overlay.addEventListener("click", () => { closeLink(); closeAdd(); closePv(); });
 $("#btnLinkSave").addEventListener("click", () => {
   if (!S.linkFid) return closeLink();
   const ids = [...$("#linkList").querySelectorAll("input:checked")]
@@ -561,6 +571,54 @@ $("#btnAddSave").addEventListener("click", async () => {
   } catch (e) {
     toast((e.status === 409 ? "写回被拒：" : "添加失败：") + e.message, true);
   }
+});
+
+/* ================= 素材预览（P12） =================
+ * /media 直连本地文件（Range/206，视频可拖进度条）；预览列表 = 当前筛选内素材，
+ * ←/→ 或按钮连续看——挑素材不用一张张点开。 */
+const previewModal = $("#previewModal");
+let pvList = [], pvIdx = 0;
+const mediaUrl = f => "/media?file=" + encodeURIComponent(f.file);
+const isVideoFile = f => /\.(mp4|mov|mkv|avi)$/i.test(f.file);
+
+function openPreview(fid) {
+  pvList = footList();
+  if (!pvList.length) { toast("素材表是空的"); return; }
+  const i = pvList.findIndex(f => f.id === fid);
+  pvIdx = i >= 0 ? i : 0;
+  previewModal.classList.add("on"); overlay.classList.add("on");
+  renderPv();
+}
+function renderPv() {
+  const f = pvList[pvIdx];
+  if (!f) return closePv();
+  $("#pvTitle").textContent = `预览 ${f.id}（${pvIdx + 1}/${pvList.length}）`;
+  $("#pvBody").innerHTML = isVideoFile(f)
+    ? `<video controls preload="metadata" src="${mediaUrl(f)}"></video>`
+    : `<img src="${mediaUrl(f)}" alt="">`;
+  $("#pvCap").textContent = f.file
+    + " ｜ Esc 关闭，←/→ 在当前筛选内连续看";
+}
+function closePv() {
+  previewModal.classList.remove("on"); overlay.classList.remove("on");
+  $("#pvBody").innerHTML = "";           // 清掉 <video> 停止播放
+}
+$("#btnPvClose").addEventListener("click", closePv);
+$("#btnPvPrev").addEventListener("click", () => {
+  if (!pvList.length) return;
+  pvIdx = (pvIdx - 1 + pvList.length) % pvList.length;
+  renderPv();
+});
+$("#btnPvNext").addEventListener("click", () => {
+  if (!pvList.length) return;
+  pvIdx = (pvIdx + 1) % pvList.length;
+  renderPv();
+});
+document.addEventListener("keydown", e => {
+  if (!previewModal.classList.contains("on")) return;
+  if (e.key === "ArrowLeft") $("#btnPvPrev").click();
+  else if (e.key === "ArrowRight") $("#btnPvNext").click();
+  else if (e.key === "Escape") closePv();
 });
 
 /* ================= 缺拍清单 ================= */

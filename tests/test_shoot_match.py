@@ -421,6 +421,54 @@ class TestServerApi(unittest.TestCase):
         self.assertEqual(d["added"], [])
         self.assertIn("已在素材表（f02）", d["skipped"][0]["reason"])
 
+    def test_素材预览media(self):
+        """P12：GET /media 直连素材字节——200 全量 / 206 Range 切片 / 根外 400 / 缺失 404。"""
+        root = make_project(self._tmp.name, files=["拍摄素材/R01_a.mp4"])
+        blob = b"0123456789abcdef"
+        (root / "拍摄素材" / "R01_a.mp4").write_bytes(blob)
+        s, d = self._req("POST", "/api/project", {"project": str(root)})
+        self.assertEqual(s, 200)
+
+        def get_media(rel, extra_range=None):
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{self.port}/media?file="
+                + urllib.request.quote(rel),
+                headers={"Range": extra_range} if extra_range else {})
+            try:
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    return (r.status, r.read(),
+                            r.headers.get("Content-Type"),
+                            r.headers.get("Content-Range"))
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read().decode("utf-8")), None, None
+
+        st, body, ct, cr = get_media("拍摄素材/R01_a.mp4")
+        self.assertEqual(st, 200)
+        self.assertEqual(body, blob)
+        self.assertEqual(ct, "video/mp4")
+        # Range 切片：bytes=2-5 → 第 2..5 字节
+        st, body, ct, cr = get_media("拍摄素材/R01_a.mp4", "bytes=2-5")
+        self.assertEqual(st, 206)
+        self.assertEqual(body, b"2345")
+        self.assertEqual(cr, f"bytes 2-5/{len(blob)}")
+        # 尾部 N 字节：bytes=-4
+        st, body, _, cr = get_media("拍摄素材/R01_a.mp4", "bytes=-4")
+        self.assertEqual(st, 206)
+        self.assertEqual(body, b"cdef")
+        self.assertEqual(cr, f"bytes 12-15/{len(blob)}")
+        # 越界 → 416
+        st, d, _, _ = get_media("拍摄素材/R01_a.mp4", "bytes=999-1001")
+        self.assertEqual(st, 416)
+        # 根外 → 400
+        outside = Path(self._tmp.name).parent / "根外.mp4"
+        outside.write_bytes(b"x")
+        self.addCleanup(outside.unlink, missing_ok=True)
+        st, d, _, _ = get_media(str(outside))
+        self.assertEqual(st, 400)
+        # 不存在 → 404
+        st, d, _, _ = get_media("拍摄素材/没有.mp4")
+        self.assertEqual(st, 404)
+
     def test_项目校验与state与批量写回(self):
         root = make_project(self._tmp.name, files=["拍摄素材/R01_a.mp4"])
         self.assertEqual(recycle.run(str(root)), 0)   # 先跑匹配器，footage 才有条目

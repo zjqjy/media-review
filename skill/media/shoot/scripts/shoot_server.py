@@ -43,9 +43,15 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 # API 版本：前端用它识别「页面新、服务进程旧」——静态文件每请求现读盘（刷新即新），
 # Python 路由却在进程启动时冻结；旧进程吃新页面就是 P8 时的 unknown endpoint。
 # 加新路由/改响应结构时必须 +1，前端 MIN_API_VERSION 同步抬。
-API_VERSION = 2
-# 前端依赖的最低版本：<2 没有手动添加素材（/api/footage/add、/api/browse）。
+API_VERSION = 3
+# 前端依赖的最低版本：<2 没有手动添加素材（/api/footage/add、/api/browse）；
+# <3 没有素材预览（/media）——点了会得到人话提示，不至于裸 404。
 MIN_API_VERSION = 2
+
+_MEDIA_CT = {".mp4": "video/mp4", ".mov": "video/quicktime",
+             ".mkv": "video/x-matroska", ".avi": "video/x-msvideo",
+             ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+             ".png": "image/png", ".webp": "image/webp"}
 
 VALID_FOOTAGE_STATE = ("candidate", "selected")
 
@@ -473,6 +479,8 @@ class ShootHandler(BaseHTTPRequestHandler):
             if u.path == "/api/browse":
                 q = parse_qs(u.query)
                 return self._json(browse_dir((q.get("dir") or [""])[0]))
+            if u.path == "/media":
+                return self._serve_media(parse_qs(u.query))
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as e:  # noqa: BLE001 —— 兜底别让线程静默死
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -530,6 +538,61 @@ class ShootHandler(BaseHTTPRequestHandler):
                                "md_sha256": cur})
 
     # —— 以下 S2-D 新增路由（剪辑批注 / 补制任务 / cut 输入编译）——
+
+    def _serve_media(self, q):
+        """素材预览（P12）：GET /media?file=<旁车里的相对路径>。
+        浏览器 <video> 拖进度条靠 Range/206——分块流式输出，3G 大文件也不爆内存。
+        安全：路径必须落在项目根内（同 add_footage 的红线），根外一律 400。"""
+        raw = _clean_path_arg((q.get("file") or [""])[0])
+        if not CTX["project_root"]:
+            return self._json({"error": "未设置项目"}, 400)
+        if not raw:
+            return self._json({"error": "缺 file 参数"}, 400)
+        root = Path(CTX["project_root"]).resolve()
+        p = Path(raw)
+        if not p.is_absolute():
+            p = root / p
+        p = p.resolve()
+        try:
+            p.relative_to(root)
+        except ValueError:
+            return self._json({"error": "素材必须在项目根内"}, 400)
+        ct = _MEDIA_CT.get(p.suffix.lower())
+        if ct is None:
+            return self._json({"error": f"不支持的预览类型: {p.suffix}"}, 400)
+        if not p.is_file():
+            return self._json({"error": f"文件不存在: {raw}"}, 404)
+        size = p.stat().st_size
+        start, end = 0, size - 1
+        rng = self.headers.get("Range")
+        if rng:  # 例：bytes=1048576- 或 bytes=-500（尾部 500 字节）
+            m = re.match(r"bytes=(\d*)-(\d*)$", rng.strip())
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1):
+                    start = int(m.group(1))
+                    if m.group(2):
+                        end = min(end, int(m.group(2)))
+                else:  # bytes=-N → 最后 N 字节
+                    start = max(0, size - int(m.group(2)))
+                if start > end or start >= size:
+                    return self._json({"error": "Range 越界"}, 416)
+        self.send_response(206 if rng else 200)
+        self.send_header("Content-Type", ct)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if rng:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        with open(p, "rb") as f:  # 1MB 分块——Range 切片多大都不吃满内存
+            f.seek(start)
+            left = end - start + 1
+            while left > 0:
+                chunk = f.read(min(1 << 20, left))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                left -= len(chunk)
 
     def _api_footage_add(self, data):
         """手动添加素材（P8）。body: {files:[绝对/相对路径], ann_ids?:[批注id]}
