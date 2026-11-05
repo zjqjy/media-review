@@ -11,7 +11,7 @@
 - **benchmark**：B站找对标（公开接口：搜索/详情/评论区，匿名可用）→ 小号（`bench_sessdata`，与大号隔离）拉 AI 字幕逐字稿 + yt-dlp 下载视频 → 按爆款公式拆解写对标笔记进 vault 对标目录 → 可模仿要素确认制写回选题池/下期规划；review 的"对标校准"直接读它的笔记
 - **aigen**：AI 生图素材（火山方舟 Seedream 按量）——提示词按官方规范（自然语言完整句+双引号烤字+组图锁角色）→ 单张验画风再批量（`gen_image.mjs`，模型 ID 带日期后缀按序降级）→ 洪泛去底（`debg.py`）→ 产物落目标工程 `public/` 接渲染；key 走 `ARK_API_KEY`/`.ark_key` 绝不进仓库，未授权 IP 形象不当每期固定资产
 - **draft**：大纲/脚本审阅修改工作台——AI 初稿 md 进网页（`draft_server.py` 起本地服务，纯标准库）逐块编辑+批注四件套（删/换/评/亮）→ ✨复制修改清单喂 AI 改稿 → md 本体纯净写回（round-trip 逐字节保真，批注存旁车 `.review.json`，锚定 hash→quote→orphan 三级回落）→ 定稿锁定（md 只读）+🎬呈现批注（人工拍摄/AI 制作+指令，旁车 `.md.shoot.json`）+📋拍摄清单导出
-- **shoot**：定稿后拍摄计划链路——素材回收匹配（文件名含 Rxx 约定优先+AI 建议+人工确认面板）→ 候选/选用+缺拍清单 → 补制任务（card/motion/aigen/reshoot，AGENT_PROTOCOL.md 供任意 agent 领取，白名单回写越权拒收）→ 剪辑批注 → 编译 `05_剪辑交接/`（素材副本+剪辑说明.md）给 cut 规程
+- **shoot**：定稿后拍摄计划链路——素材回收匹配（文件名含 Rxx 约定优先+AI 建议+人工确认面板，手动添加素材一等路径）→ 候选/选用+缺拍清单 → 补制任务（card/motion/aigen/reshoot，AGENT_PROTOCOL.md 供任意 agent 领取，白名单回写越权拒收）→ 剪辑批注 → 两条出口：编译 `05_剪辑交接/`（素材副本+剪辑说明.md）给 cut 规程，或 🎬选用素材按批注顺序粗拼直出剪映草稿（`剪映草稿.py`，pyJianYingDraft 懒加载，防覆盖自动 v2）精细剪辑
 
 ## 结构
 

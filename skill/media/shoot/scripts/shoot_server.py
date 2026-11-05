@@ -37,13 +37,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from 素材回收 import (  # noqa: E402 —— 复用同目录的旁车定位/匹配内核/时长探测
     find_sidecar, probe_duration, FOOTAGE_EXTS, VIDEO_EXTS)
 import 剪辑交接  # noqa: E402 —— S2-D：补制任务生成 + cut 输入编译（05_剪辑交接）
+import 剪映草稿  # noqa: E402 —— 选用素材粗拼直出剪映草稿（jy_draft 家底懒加载）
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 # API 版本：前端用它识别「页面新、服务进程旧」——静态文件每请求现读盘（刷新即新），
 # Python 路由却在进程启动时冻结；旧进程吃新页面就是 P8 时的 unknown endpoint。
 # 加新路由/改响应结构时必须 +1，前端 MIN_API_VERSION 同步抬。
-API_VERSION = 3
+API_VERSION = 4
 # 前端依赖的最低版本：<2 没有手动添加素材（/api/footage/add、/api/browse）；
 # <3 没有素材预览（/media）——点了会得到人话提示，不至于裸 404。
 MIN_API_VERSION = 2
@@ -503,6 +504,8 @@ class ShootHandler(BaseHTTPRequestHandler):
                 return self._api_editnote(data)
             if u.path == "/api/tasks/generate":
                 return self._api_tasks_generate(data)
+            if u.path == "/api/jy_draft":
+                return self._api_jy_draft(data)
             if u.path == "/api/handoff/compile":
                 return self._api_handoff_compile()
             return self._json({"error": "unknown endpoint"}, 404)
@@ -666,6 +669,26 @@ class ShootHandler(BaseHTTPRequestHandler):
                     json.dumps(state, ensure_ascii=False, indent=2))
             return self._json({"added": added, "added_count": len(added),
                                "tasks": tasks, "state": state})
+
+    def _api_jy_draft(self, data):
+        """选用素材粗拼直出剪映草稿。body 可空（{name?, dry_run?} 可选）。
+        编排来自 shoot.json 的选用素材（指纹不对不生成，409 拦下）；
+        友好失败（缺依赖/草稿根不存在/没有选用素材）→ RuntimeError → 400。"""
+        with LOCK:
+            if not CTX["project_root"]:
+                return self._json({"error": "未设置项目"}, 400)
+            state = load_state()
+            blocked = self._sha_guard(state)
+            if blocked:
+                return blocked
+            try:
+                r = 剪映草稿.generate(
+                    CTX["project_root"], state=state,
+                    name=data.get("name"),
+                    dry_run=bool(data.get("dry_run")))
+            except RuntimeError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json(r)
 
     def _api_handoff_compile(self):
         """cut 输入编译（实跑）：写 <项目根>/05_剪辑交接/（素材复制副本 +

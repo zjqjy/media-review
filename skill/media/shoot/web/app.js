@@ -742,6 +742,25 @@ $("#btnCompile").addEventListener("click", async () => {
   }
 });
 
+/* 生成剪映草稿：选用素材按批注顺序粗拼进剪映，精细剪辑在剪映里做 */
+$("#btnJyDraft").addEventListener("click", async () => {
+  if (!S.project) { toast("先打开项目"); return; }
+  const sel = (S.state?.footage || []).filter(f => f.state === "selected").length;
+  if (!sel) { toast("先勾选确认至少一段选用素材（候选 → 选用）"); return; }
+  if (!confirm(`把 ${sel} 段选用素材按批注顺序拼成剪映草稿？\n`
+    + "全段硬切 + Rxx 导航标签；剪辑批注是参考不会自动截段。\n"
+    + "同名旧稿若被剪映改过会自动落 v2，绝不覆盖。")) return;
+  try {
+    const r = await api("/api/jy_draft", {});
+    setStatus(`🎬 草稿「${r.name}」已生成：${r.clips_count} 段 · 约 `
+      + `${fmtDur(r.duration_s)} ｜ ${r.draft_path}`);
+    toast(`剪映草稿「${r.name}」已生成——打开剪映精剪`
+      + (r.warnings && r.warnings.length ? `（⚠ ${r.warnings.length} 条提醒，详见服务端控制台）` : ""));
+  } catch (e) {
+    toast((e.status === 409 ? "生成被拒：" : "生成失败：") + e.message, true);
+  }
+});
+
 /* ================= 渲染总入口 / 启动 ================= */
 function renderAll() { renderAnn(); renderFootage(); renderTasks(); }
 
