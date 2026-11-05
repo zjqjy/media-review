@@ -31,6 +31,8 @@ const TASK_TOOL = {
   reshoot: "人工补拍",
 };
 
+const MIN_API_VERSION = 2;   // 服务端低于此版本 = 旧进程：手动添加素材等不可用
+
 async function api(path, body) {
   const opt = body !== undefined
     ? { method: "POST", headers: { "Content-Type": "application/json" },
@@ -38,7 +40,11 @@ async function api(path, body) {
   const r = await fetch(path, opt);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const e = new Error(data.error || ("HTTP " + r.status));
+    let msg = data.error || ("HTTP " + r.status);
+    // "unknown endpoint" = 页面比服务进程新（静态文件刷了，Python 路由还是旧的）
+    if (msg === "unknown endpoint")
+      msg = "服务进程是旧版（没这个接口）——重启 shoot 服务（关掉跑它的终端重跑）再用此功能";
+    const e = new Error(msg);
     e.status = r.status; throw e;
   }
   return data;
@@ -126,8 +132,12 @@ async function openProject(p) {
     await loadProbe();
     initChecked();
     renderAll();
+    const stale = (d.api_version || 1) < MIN_API_VERSION;
     setStatus(`已打开（批注 ${(S.state.annotations || []).length}，素材 `
-      + `${(S.state.footage || []).length}${d.sha_ok ? "" : "，⚠ 定稿指纹不符"}）`);
+      + `${(S.state.footage || []).length}${d.sha_ok ? "" : "，⚠ 定稿指纹不符"}）`
+      + (stale ? " ｜ ⚠ 服务是旧版进程：手动添加素材等新功能不可用，请重启 shoot 服务" : ""));
+    if (stale)
+      toast("⚠ 服务进程比页面旧——「＋添加素材」等新功能会失败，请重启 shoot 服务", true);
   } catch (e) {
     toast("打开失败：" + e.message, true);
   }

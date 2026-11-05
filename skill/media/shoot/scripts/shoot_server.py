@@ -40,6 +40,13 @@ import 剪辑交接  # noqa: E402 —— S2-D：补制任务生成 + cut 输入�
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
+# API 版本：前端用它识别「页面新、服务进程旧」——静态文件每请求现读盘（刷新即新），
+# Python 路由却在进程启动时冻结；旧进程吃新页面就是 P8 时的 unknown endpoint。
+# 加新路由/改响应结构时必须 +1，前端 MIN_API_VERSION 同步抬。
+API_VERSION = 2
+# 前端依赖的最低版本：<2 没有手动添加素材（/api/footage/add、/api/browse）。
+MIN_API_VERSION = 2
+
 VALID_FOOTAGE_STATE = ("candidate", "selected")
 
 # 服务端唯一内存态：当前项目（LOCK 保护所有旁车读改写）
@@ -96,10 +103,11 @@ def sha_ok():
 
 
 def project_info():
-    """GET /api/project 的响应体。"""
+    """GET /api/project 的响应体（api_version 供前端识别旧进程）。"""
     if not CTX["project_root"]:
-        return {"project_root": None}
+        return {"project_root": None, "api_version": API_VERSION}
     return {
+        "api_version": API_VERSION,
         "project_root": CTX["project_root"],
         "md_path": CTX["md_path"],
         "source_sha256": _sidecar_sha(),
