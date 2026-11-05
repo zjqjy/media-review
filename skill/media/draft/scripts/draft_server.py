@@ -20,6 +20,15 @@ import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class DraftServer(ThreadingHTTPServer):
+    # Windows 的 SO_REUSEADDR 语义与 POSIX 不同：置位时允许第二个进程绑定同一监听
+    # 端口——「端口被占爬位 +1」永远不触发，新旧两个服务挤在同端口、流量随机分
+    # （实测：僵尸旧服务吞掉保存，新服务的版本快照一步都没跑）。关掉 reuse 让
+    # 占用检测真失败，爬位逻辑才工作。POSIX 语义不受影响（TIME_WAIT 重启场景
+    # 在本工具是「同端口立刻重启」，极小概率多爬一位，可接受）。
+    allow_reuse_address = False
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -415,7 +424,7 @@ def main():
     port, server = args.port, None
     for attempt in range(10):
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", port), DraftHandler)
+            server = DraftServer(("127.0.0.1", port), DraftHandler)
             break
         except OSError:
             print(f"[draft] 端口 {port} 被占，试 {port + 1}")

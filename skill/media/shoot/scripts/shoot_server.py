@@ -23,6 +23,12 @@ import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class ShootServer(ThreadingHTTPServer):
+    # 同 draft_server：Windows 的 SO_REUSEADDR 允许双绑定同端口，占用检测失效、
+    # 流量随机分（僵尸服务吞写事故的根因）。关掉 reuse，爬位 +1 才能触发。
+    allow_reuse_address = False
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -492,7 +498,7 @@ class ShootHandler(BaseHTTPRequestHandler):
 
 def make_server(host, port):
     """起一个 ThreadingHTTPServer（测试用它拿 0 号端口）。"""
-    return ThreadingHTTPServer((host, port), ShootHandler)
+    return ShootServer((host, port), ShootHandler)
 
 
 def main():
@@ -511,7 +517,7 @@ def main():
     port, server = args.port, None
     for attempt in range(10):
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", port), ShootHandler)
+            server = ShootServer(("127.0.0.1", port), ShootHandler)
             break
         except OSError:
             print(f"[shoot] 端口 {port} 被占，试 {port + 1}", flush=True)

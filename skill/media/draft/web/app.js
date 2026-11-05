@@ -1145,7 +1145,7 @@ async function showHistory() {
     const r = await api("/api/history?path=" + encodeURIComponent(S.path));
     $("#histTitle").textContent = `📜 历史版本（${r.files.length}）`;
     if (!r.files.length) {
-      wrap.innerHTML = '<div class="btip">还没有历史——每次保存会自动快照改动前的版本</div>';
+      wrap.innerHTML = '<div class="btip">还没有历史——内容<b>有变化</b>的保存会自动快照改动前的版本（没改字就不重复快照）</div>';
       return;
     }
     wrap.innerHTML = "";
