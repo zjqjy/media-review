@@ -15,7 +15,8 @@
 plan.json 结构（agent 写、本模块读）：
     {
       "video":  "D:/…/成片.mp4",
-      "covers": {"douyin": "…/cover_9x16.png", "bilibili": "…/cover_16x9.png",
+      "covers": {"douyin": ["…/横4x3.png", "…/竖3x4.png"],   // str 或 list[str]（抖音双格式）
+                 "bilibili": "…/cover_16x9.png",
                  "xhs": "…/cover_3x4.png"},
       "drafts": {"douyin": {"title": "…", "desc": "…", "tags": ["…"],
                  "topics": ["…"],         // 可选：真话题（表单里挂芯片，不是正文 # 文字）
@@ -80,6 +81,15 @@ def validate_draft(pid: str, draft: dict, platforms: dict | None = None) -> list
     return errors
 
 
+def _cover_paths(cover) -> list[str]:
+    """封面字段归一：str 或 list[str]（抖音双格式横竖版）都收 → 路径清单。"""
+    if cover is None:
+        return []
+    if isinstance(cover, (list, tuple)):
+        return [str(c) for c in cover]
+    return [str(cover)]
+
+
 def validate_plan(plan: dict, platforms: dict | None = None) -> dict[str, list[str]]:
     """整单校验 → {pid: [错误…]}（只含有问题的平台）；封面必设平台查文件真实存在。"""
     plats = platforms if platforms is not None else load_platforms()
@@ -88,10 +98,11 @@ def validate_plan(plan: dict, platforms: dict | None = None) -> dict[str, list[s
     out: dict[str, list[str]] = {}
     for pid, p in plats.items():
         errs = validate_draft(pid, drafts.get(pid) or {}, plats)
-        cover = covers.get(pid)
-        if cover:
-            if not Path(cover).exists():
-                errs.append(f"{p['name']}：封面文件不存在：{cover}")
+        paths = _cover_paths(covers.get(pid))
+        if paths:
+            for c in paths:
+                if not Path(c).exists():
+                    errs.append(f"{p['name']}：封面文件不存在：{c}")
         elif p.get("cover_required"):
             errs.append(f"{p['name']}：封面必设（可用 cover 子技能产物，对应画幅见常量表 cover_hint）")
         if errs:
@@ -106,7 +117,8 @@ def build_confirmation(plan: dict, platforms: dict | None = None) -> str:
     lines = ["# 📋 发布确认单", "", f"视频：`{plan.get('video', '?')}`", ""]
     for pid, p in plats.items():
         d = (plan.get("drafts") or {}).get(pid) or {}
-        cover = (plan.get("covers") or {}).get(pid) or "（无）"
+        cover_list = _cover_paths((plan.get("covers") or {}).get(pid))
+        cover = "、".join(cover_list) if cover_list else "（无）"
         errs = errors.get(pid) or []
         title = (d.get("title") or "").strip()
         desc = (d.get("desc") or "").strip()

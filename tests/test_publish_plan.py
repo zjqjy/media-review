@@ -102,6 +102,19 @@ class TestValidatePlan(unittest.TestCase):
     def test_fully_valid_plan_has_no_errors(self):
         self.assertEqual(pp.validate_plan(self._plan(), self.plats), {})
 
+    def test_cover_list_formats_accepted(self):
+        # 抖音双格式（横4x3+竖3x4）：covers 值为 list 也收，逐个验存在
+        png2 = Path(self.tmp.name) / "cover_3x4.png"
+        png2.write_bytes(b"png")
+        errs = pp.validate_plan(self._plan(covers={
+            "douyin": [str(self.png), str(png2)], "xhs": str(png2)}), self.plats)
+        self.assertNotIn("douyin", errs)
+
+    def test_cover_list_bad_file_reported(self):
+        errs = pp.validate_plan(self._plan(covers={
+            "douyin": [str(self.png), "Z:/没有的.png"], "xhs": str(self.png)}), self.plats)
+        self.assertTrue(any("封面文件不存在" in e for e in errs["douyin"]))
+
     def test_missing_draft_counts_as_empty(self):
         errs = pp.validate_plan(
             self._plan(drafts={"douyin": {"title": "t"}}), self.plats)
