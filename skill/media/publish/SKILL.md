@@ -41,7 +41,7 @@
    （B站「含AI生成内容」/抖音「内容由AI生成」/小红书在内容设置区选 AI 相关项，用户可改）
    → 合集（确认单里点名才动）→ 传封面 → 关浮层/弹窗。
 5. **停在「发布」按钮前**：`screenshot` 存证 + snapshot 摘要表单状态，交用户过目。
-6. 平台顺序：小红书 → B站 → 抖音；两平台之间随机等 30~90 秒（模拟人类，绝不同时开三平台）。
+6. 节奏：平台内动作间随机延时（模拟人类）；平台间可并行（子 agent 各管一个 taskSpace，见「并行子 agent 发布」）。
 
 ### 第 4 步 · 正式发布
 用户看过 dry-run 截图、确认表单无误后：
@@ -50,6 +50,18 @@
 3. 落档：`python scripts/publish_plan.py record --video 成片.mp4 --platform <pid>
    --title "…" --url <内容页链接>`。
 4. 单平台失败：screenshot+人话汇报原因，**停下交人，不重试不乱点**；其余平台继续。
+
+## 并行子 agent 发布（默认启用，2026-11-08 用户点名）
+
+确认单过审后，**主 agent 一口气派遣三个 general-purpose 子 agent**（小红书/B站/抖音各一）并行发布，不串行磨叽。**两阶段，同一 TaskSpace 复用**：
+
+- **阶段1 dry-run**：子 agent 按 `briefs/subagent-brief.template.md`（填 {{PID}}/{{TASKSPACE}}/{{PLAN_JSON}}/{{DECLARE}} 等变量）把真实成片+文案填进表单，**停发布按钮前**截图回报
+- **用户过目截图** → 说「发」→ **阶段2 真发**：主 agent（或复派子 agent）resume 同 space 点发布 → 等成功信号（跳转/成功提示）→ screenshot 存证
+- 每个子 agent 只领**一个平台**：读 brief + `platforms.json` 对应平台节 + `ego-browser` skill，用**自己的 taskSpace**（`publish-<pid>-e<N>-<日期>`）
+- 平台间并行无妨（互相看不见）；**平台内保持人类节奏**（动作间随机延时），同一平台绝不并发两个 agent
+- 子 agent 不写发布记录：返回 JSON 结果（platform/成功与否/内容页 URL/失败截图路径/卡点人话）给主 agent，**主 agent 统一落档** `publish_plan.py record`
+- 子 agent 遇验证码/异常弹窗/掉登录：截图留证、停止、如实回报，不重试不乱点
+- 登录态已在 ego profile（三平台都登录过）；子 agent 发现掉登录→回报主 agent，由主 agent handOff 请用户扫码
 
 ## 红线
 
