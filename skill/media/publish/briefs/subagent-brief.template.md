@@ -28,11 +28,15 @@
 - 创作声明选 `{{DECLARE}}`；声明下拉若自动化点不开 → 不要硬闯，该项记入 blockers 回报（主 agent 会请用户手点）
 - 遇验证码/权限弹窗/掉登录：截图留证，如实回报，不重试不乱点；掉登录直接终止回报
 
-## 完成标准与返回
+## 完成标准与返回（三件套，缺一不可）
 表单全部填完（标题/简介/话题芯片/tags/声明/{{EXTRA}}）且停在发布按钮前：
 1. `page.screenshot({ path: "C:/Users/23393/ego/{{TASKSPACE}}/dryrun-final.png" })`
 2. snapshot 摘录表单关键字段值
-3. 返回一行 JSON：`{"platform":"{{PID}}","spaceName":"{{TASKSPACE}}","spaceId":N,"done":true,"screenshot":"…","formState":{"title":"…","descLen":N,"topics":[…],"declare":"…"},"blockers":[]}`；未完成则 done:false + blockers 人话清单。除 JSON 外只写一句话总结。
+3. **三件套返回**：
+   a. 一行 JSON：`{"platform":"{{PID}}","spaceName":"{{TASKSPACE}}","spaceId":N,"done":true,"screenshot":"…","formState":{"title":"…","descLen":N,"topics":[…],"declare":"…"},"blockers":[…]}`（未完成 done:false）
+   b. **卡点清单**：这一路实际踩到的每个坎（哪一步、报什么/看到什么、绕没绕过去、耗时几轮）
+   c. **改进建议**：针对每个卡点，指名改哪——platforms.json 某字段（selector_hint/pitfalls/verified 回写）、SKILL.md 某一节、本 brief 某一行、或建议新增 driver 固化点。没有卡点也要给一条「流程里最弱的一环」
+   b/c 用人话短句列表，主 agent 拿去回写常量表和 SOP（每次发布都必须让技能更好一点）。
 
 ## 红线
 - **绝不点发布/投稿/立即投稿按钮**（阶段2 由主 agent 复用本空间执行）

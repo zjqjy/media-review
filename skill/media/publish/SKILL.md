@@ -59,7 +59,7 @@
 - **用户过目截图** → 说「发」→ **阶段2 真发**：主 agent（或复派子 agent）resume 同 space 点发布 → 等成功信号（跳转/成功提示）→ screenshot 存证
 - 每个子 agent 只领**一个平台**：读 brief + `platforms.json` 对应平台节 + `ego-browser` skill，用**自己的 taskSpace**（`publish-<pid>-e<N>-<日期>`）
 - 平台间并行无妨（互相看不见）；**平台内保持人类节奏**（动作间随机延时），同一平台绝不并发两个 agent
-- 子 agent 不写发布记录：返回 JSON 结果（platform/成功与否/内容页 URL/失败截图路径/卡点人话）给主 agent，**主 agent 统一落档** `publish_plan.py record`
+- 子 agent 不写发布记录：返回**三件套**——①JSON 结果（platform/成功与否/内容页 URL/截图路径/blockers）②**卡点清单**（实际踩到的坎，逐步人话）③**改进建议**（指名改 platforms.json/SKILL.md/brief 哪里）；主 agent 拿 ②③ **回写常量表与 SOP**（每次发布必须让技能更好一点），并统一落档 `publish_plan.py record`
 - 子 agent 遇验证码/异常弹窗/掉登录：截图留证、停止、如实回报，不重试不乱点
 - 登录态已在 ego profile（三平台都登录过）；子 agent 发现掉登录→回报主 agent，由主 agent handOff 请用户扫码
 
