@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "updated": "2026-11-07",
+  "note": "本表是 publish 子技能的常量源。verified=false 的数值是待实测校准的占位：dry-run 时以页面 maxlength/字数计数器实测为准，回写本表并把 verified 置 true。选择器只是提示词（selector_hint），agent 现场 snapshot 认路，不硬依赖。",
+  "source_evidence": "social-auto-upload (dreammis) 2026-11 深克隆，见 research/2026-11-07-github-uploaders.md",
+  "platforms": {
+    "douyin": {
+      "name": "抖音",
+      "creator_entry": "https://creator.douyin.com/creator-micro/content/upload",
+      "login": {
+        "mode": "ego profile 持久态",
+        "relogin": "页面出现「扫码登录/手机号登录」即未登录→handOff 人工扫码；URL 进入 creator-micro 即登录成功"
+      },
+      "video_input": "上传区「点击上传」button → waitForFileChooser+setFiles；表单等视频上传完才渲染（轮询等『填写作品标题』出现）。实测口径：≤1小时/16G，超40秒建议横版（页面明示）",
+      "title": { "selector_hint": "input[placeholder='填写作品标题，为作品获得更多流量']", "max_chars": 30, "verified": true, "evidence": "sau 源码截断 + 2026-11-08 dry-run 计数器 0/30 双实锤" },
+      "desc": { "selector_hint": "作品简介编辑器（『#添加话题 @好友』工具条）；打 # 弹话题联想点选成芯片", "max_chars": 1000, "verified": true, "evidence": "计数器 33/1000 实锤" },
+      "tags": { "hint": "标签在扩展信息区「添加标签」；位置/关联热点同区可选", "max_count": 10, "verified": false },
+      "declare_default": "内容由AI生成（同用户口径；2026-11-08 dry-run 已实选通过）",
+      "declare_options": "「自主声明」弹窗单选：内容由AI生成/内容为个人观点或见解/内容为转载信息/内容含营销推广信息/虚构演绎仅供娱乐/无需添加自主声明",
+      "cover_required": true,
+      "cover_hint": "「请设置封面后再发布」会挡发布；表单有 横封面4:3/竖封面3:4『选择封面』入口+AI智能推荐生成；AI 封面生成中可等或手选",
+      "publish_button": "发布设置区：谁可以看/发布时间（立即发布·定时发布）/「发布」；发布后提示『作品还在上传中请勿关闭页面』",
+      "pitfalls": [
+        "身份验证组件 uc_verification_component 只认整套原生事件序列（pointerover→pointerenter→pointerdown→mousedown→pointerup→mouseup→click），裸 click 不认——用 ego 真实鼠标动作",
+        "上传点击会请求定位（挂位置标签）——ego profile 已把 creator.douyin.com 定位+通知永久拒绝（Preferences geolocation/notifications setting=2）；注意：改完 Preferences 必须【强杀全部 ego 进程再重启】才生效（优雅关不全=老进程带旧配置还活着，2026-11-08 实锤栽过）",
+        "组件库=Semi Design（字节）：radio/semi-input/semi-select 家族选择器",
+        "合集/位置可不填不阻断；合集在『添加合集』semi-select（加入真合集要用户在确认单点名，防污染）"
+      ]
+    },
+    "bilibili": {
+      "name": "B站",
+      "creator_entry": "https://member.bilibili.com/platform/upload/video/frame",
+      "login": {
+        "mode": "ego profile 持久态（主号，与 benchmark 小号目录彻底隔离）",
+        "relogin": "member 域未登录→handOff 人工登录"
+      },
+      "required_fields": ["title", "分区", "tags"],
+      "title": { "selector_hint": "input[placeholder='请输入稿件标题']（内嵌滚动区，fill 前先 scrollIntoView）", "max_chars": 80, "verified": true, "evidence": "2026-11-08 dry-run 计数器 9/80 实锤" },
+      "desc": { "selector_hint": "简介 contenteditable（placeholder『填写更全面的相关信息…』）", "max_chars": 2000, "verified": true, "evidence": "计数器 0/2000 实锤" },
+      "tags": { "selector_hint": "标签框按回车创建，最多10个；推荐标签可直接点", "max_count": 10, "verified": true },
+      "declare_default": "含AI生成内容（用户口径：他的片一般声明 AI 生成；2026-11-08 dry-run 已实选通过）",
+      "declare_options": "下拉单选：内容无需标注/含AI生成内容/含虚构演绎内容/内容含营销信息/个人观点仅供参考/内容为转载；另有非必选授权声明『内容为自制：未经作者允许禁止转载』。注意：该下拉组件只认真人事件序列，自动化点不开时 handOff 人工选",
+      "category": "必填：分区树（dry-run 用『科技数码』通过）；漏选发不了",
+      "cover_required": false,
+      "cover_hint": "封面非必设；『添加封面』含 AI 生成入口（用 cover 产物 16x9 可本地上传）",
+      "sau_reference": "sau 不走浏览器：外挂 biliup CLI API 直传（--title/--desc/--tid/--tag/--cover）→ 表单流程 S6-D 实测校准后回写选择器提示",
+      "pitfalls": [
+        "benchmark 教训：非人类指纹易触 B站风控——发布走 ego 人类节奏表单流，不 API 直传",
+        "分区必填；tag 至少 1 个"
+      ]
+    },
+    "xhs": {
+      "name": "小红书",
+      "creator_entry": "https://creator.xiaohongshu.com/publish/publish?from=menu&target=video",
+      "login": {
+        "mode": "ego profile 持久态",
+        "relogin": "creator 域跳 /login → handOff 人工扫码（APP扫一扫登录）；URL 进 /new/home 即登录成功"
+      },
+      "video_input": "「拖拽视频到此或点击上传」的 button（无 accessible name，snapshot 找 ref）；走 waitForFileChooser+setFiles",
+      "title": { "selector_hint": "input[placeholder='填写标题会有更多赞哦']", "max_chars": 20, "verified": false },
+      "desc": { "selector_hint": "正文富文本 textfield（placeholder『输入正文描述…』）", "max_chars": 1000, "verified": true, "evidence": "2026-11-07 dry-run 计数器 27/1000 实锤" },
+      "tags": { "hint": "话题必须走联想下拉点选成芯片（anchor 节点）——只打 #文字 按 Esc 不算挂话题；输 # 即弹联想", "verified": true },
+      "cover_required": false,
+      "declare_default": "AI 生成口径（用户统一口径；xhs 在「内容设置」区：原创声明开关+内容类型声明下拉，具体选项文案待下次实选时枚举回写）",
+      "extra_fields": "内容设置区：添加章节（≥15s 才支持）/原创声明开关/内容类型声明；正文工具条含 话题/@用户/表情 按钮与字数计数器",
+      "cover_hint": "默认截第一帧当封面，不设也能发；自定义上传入口未在表单 DOM 露出（2026-11-07 dry-run 实测：只有智能推荐封面/一键生成/PK封面），自定义封面待真发时人工探一次入口后回写",
+      "publish_button": "表单底部红色「发布」（旁边是「暂存离开」，别点错）；其上有 <xhs-publish-btn> 浮层会挡编辑区点击，正文框用 focus()+keyboard 输入绕过",
+      "sau_reference": "sau 走 API 签名链（window._webmsxyw 出 x-s/x-t，靠 stealth.js 注入，脆且风控敏感）→ 我们不用 API 路线，走创作者页面表单",
+      "pitfalls": [
+        "点「上传视频」会触发定位权限请求（挂笔记位置标签用）——ego profile 已把 creator.xiaohongshu.com 定位永久拒绝（Preferences geolocation setting=2，2026-11-07 实锤），新 profile 需重做一次",
+        "正文编辑区被发布条浮层拦截 pointer events——focus()+keyboard.type 绕过",
+        "上传上限实测口径：≤4小时/≤20GB，推荐 mp4/mov（页面明示）"
+      ]
+    }
+  }
+}

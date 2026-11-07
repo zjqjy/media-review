@@ -1,0 +1,13 @@
+{
+  "feature": "S6-publish",
+  "title": "publish 三平台自动发布子技能（ego 直驾 + SOP 教材化）",
+  "current": "S6-E",
+  "updated": "2026-11-08",
+  "stages": {
+    "S6-A": "done",
+    "S6-B": "done",
+    "S6-C": "done",
+    "S6-D": "done",
+    "S6-E": "pending-user"
+  }
+}
