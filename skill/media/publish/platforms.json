@@ -61,6 +61,7 @@
       "desc": { "selector_hint": "正文富文本 textfield（placeholder『输入正文描述…』）", "max_chars": 1000, "verified": true, "evidence": "2026-11-07 dry-run 计数器 27/1000 实锤" },
       "tags": { "hint": "话题必须走联想下拉点选成芯片（anchor 节点）——只打 #文字 按 Esc 不算挂话题；输 # 即弹联想。联想行带浏览量（如 1.9亿浏览），**无申请制**；遇到带「合作」标记的话题跳过换普通词（那是需报名的商业话题）", "verified": true, "evidence": "2026-11-08 标签实验：联想行=话题名+浏览量，无门槛标记" },
       "cover_required": false,
+      "cover_custom_path": "已破解（2026-11-08 实测通）：①mouse.click 首帧封面缩略图（设置封面区左侧大图，evaluate 量坐标）→ 出现「编辑封面」入口 → ②点「编辑封面」开编辑器 → ③setInputFiles('input[aria-label=\"上传封面图片\"]', [cover]) → ④点「完成」。上传后平台自动质检（✅封面效果评估通过）。注意：缩略图要视频处理完才出现；编辑器弹层里的 text= 点不中就用 aria-label 直接 setInputFiles",
       "declare_default": "AI 生成口径（用户统一口径；xhs 在「内容设置」区：原创声明开关+内容类型声明下拉，具体选项文案待下次实选时枚举回写）",
       "extra_fields": "内容设置区：添加章节（≥15s 才支持）/原创声明开关/内容类型声明；正文工具条含 话题/@用户/表情 按钮与字数计数器",
       "cover_hint": "默认截第一帧当封面，不设也能发；自定义上传入口未在表单 DOM 露出（2026-11-07 dry-run 实测：只有智能推荐封面/一键生成/PK封面），自定义封面待真发时人工探一次入口后回写",
