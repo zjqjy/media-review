@@ -42,7 +42,7 @@
       "declare_options": "下拉单选：内容无需标注/含AI生成内容/含虚构演绎内容/内容含营销信息/个人观点仅供参考/内容为转载；另有非必选授权声明『内容为自制：未经作者允许禁止转载』。注意：该下拉组件只认真人事件序列，自动化点不开时 handOff 人工选",
       "category": "必填：分区树（dry-run 用『科技数码』通过）；漏选发不了",
       "cover_required": false,
-      "cover_hint": "封面非必设；『添加封面』含 AI 生成入口（用 cover 产物 16x9 可本地上传）",
+      "cover_hint": "只传 4x3（首页推荐口，用户口径 2026-11-08）：点「添加封面」→ setInputFiles('input[type=\"file\"][accept^=image]') → 完成；编辑器里有「个人空间封面(16:9)」页签但无需单独传（16:9 由 4:3 派生/双比例同步）。「AI生成」入口不用",
       "sau_reference": "sau 不走浏览器：外挂 biliup CLI API 直传（--title/--desc/--tid/--tag/--cover）→ 表单流程 S6-D 实测校准后回写选择器提示",
       "pitfalls": [
         "benchmark 教训：非人类指纹易触 B站风控——发布走 ego 人类节奏表单流，不 API 直传",

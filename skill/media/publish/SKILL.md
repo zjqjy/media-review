@@ -53,6 +53,19 @@
    --title "…" --url <内容页链接>`。
 4. 单平台失败：screenshot+人话汇报原因，**停下交人，不重试不乱点**；其余平台继续。
 
+## 快发驱动器（scripts/drivers/，2026-11-08 3 分钟目标产物）
+
+逐轮 snapshot 慢舞步只够 dry-run 摸路；真发用**单发驱动器**：`scripts/drivers/{bili,xhs,douyin}.mjs`
+每个是一次 `ego-browser nodejs < driver.mjs` 跑完全程（上传→填表→声明→封面→**停发布按钮前**），
+头部 CONFIG 块按当期 plan 改（视频/封面/文案/taskSpace 名），三平台三进程**并行**跑。
+
+- 实测（285MB 真片，并行墙钟 **~45s**）：B站 24.8s 零 blocker｜抖音 ~50s｜小红书 ~41s
+- 无人值守模式的已知残留（driver 三轮迭代后仍不稳，标准对策=driver 填完主 agent 30 秒补刀）：
+  ①话题联想行程序化点击/坐标点击都不挂芯片（手动 text="#词" 真点击可行）→ 主 agent 补挂
+  ②抖音竖封面 image input 时序抖动 ③xhs 封面缩略图渲染时长不定（driver 已带 30s 等待环）
+- B站封面按用户口径只传 4x3（个人空间 16:9 平台派生）；抖音声明弹窗/封面编辑器在 driver 内 text= 坐标法可用
+- driver 末尾必出 JSON（ok/elapsedSec/screenshot/blockers）+ uncaughtException 兜底，任何失败都留人话报告
+
 ## 并行子 agent 发布（默认启用，2026-11-08 用户点名）
 
 确认单过审后，**主 agent 一口气派遣三个 general-purpose 子 agent**（小红书/B站/抖音各一）并行发布，不串行磨叽。**两阶段，同一 TaskSpace 复用**：
