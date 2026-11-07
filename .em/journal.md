@@ -63,3 +63,33 @@
 - 交付: shoot/scripts/剪映草稿.py（build_plan 编排纯函数：批注数值序/跨批注共用只落首条/孤儿追加尾部/缺盘跳过告警；generate 复用 jy_draft 家底[resolve_draft_root/防覆盖盖戳/root_meta 登记Registers/fps 收敛]，懒加载+select 地雷防护）+ /api/jy_draft（API_VERSION→4）+ 面板「🎬生成剪映草稿」按钮；Rxx 2 秒导航标签每段开头；被改过的同名稿自动落 v2 绝不覆盖
 - 分工写死: cut/jy_draft=转录剪切稿 AI 粗剪；shoot/剪映草稿=选用素材表人挑粗拼；editNotes 是参考不自动截段
 - 测试: +10（编排纯函数/dry-run 零写盘/错误路径/真 mp4 全链路[imageio_ffmpeg 造彩条→临时草稿根→登记断言]）305 绿；装位同步；8790 换血 v4，真实项目 dry-run 编排 7 段正常
+
+## [2026-11-07] 会话: 用户 /em result 报 shoot 链路试用反馈五连（P13 开放）
+- 反馈: ①交付全量——Rxx 全部剪辑要求一锅端，只剪部分得在对话里口头强调 ②拍摄任务分 AI 制作/本人拍摄，应支持并行 ③素材回收 AI 自动扫描挂接费时，要求去掉、面板手动挂优先 ④剪辑成果不自动挂回工作台 ⑤缺「工作台→AI 对话→回到工作台」闭环
+- 动作: 记录 problem-log P13（开放）；候选升 S3 特性，/em new 澄清后定方案
+- 下一步: /em new 开 S3 交付/回收闭环
+
+## [2026-11-07] 会话: S3 cover-skill（封面子技能）方案落盘
+- 产出: features/S3-cover-skill/{plan.md,README.md,status.json}；五子步骤 S3-A~E（上游基线/脚本换血/SKILL+路由/单测/验收退役）
+- 关键决策: 方案 A 原地改造取上游 GitHub 最新基线（选帧 know-how 保真+LICENSE 保留）；分析双模式同一把 ARK key（agent 默认零成本/api=doubao 视觉回退，跑不动明说不静默）；生图 Seedream+参考帧；ZenMux/credential-ui 整层退役；精简移植+旧 skill 验证后删 ~/.agents/skills/oil-cover；cover 占 S3，P13 立项编 S4
+- 下一步: S3-A 开发 → /em verify s3-a
+
+## [2026-11-07] 会话: S4 delivery-loop 澄清定稿+中档落盘，开工（与 S3-cover 并行会话同日）
+- 编号: 原拟 S3，让位并行会话的 cover-skill（上方 journal 在案），P13 立项改 S4
+- 澄清: 逐个 Rxx 剪是常态全剪是例外；用户否决面板直达渲染（执行者必须是对话 AI）；成果=粗拼小样 mp4 批注上直接预览
+- 产出: features/S4-delivery-loop/plan.md；拆 S4-A~E（A schema v2+校验器 / B 粗拼小样核 / C 面板闭环 / D 剧本协议+--only / E 回归装位）
+- 关键决策: 桥=shoot.json 新增 cutQueue（面板专属写）/deliverables（agent 只许追加）两节；小样含跨批注共用素材（预览要看全）；素材回收 AI 兜底从剧本删除
+- 下一步: S4-A 开发
+
+## [2026-11-07] 会话: S4 delivery-loop 开发完成（当日立项当日交付，356 绿）
+- 交付: schema v2（cutQueue/deliverables，读端兼容 v1，双校验器对拍）+ 粗拼小样.py 渲染核（720p 快渲/无音轨补静音/图片展帧/挂回+消化队列/sha 拒写）+ /api/cut_queue（API_VERSION→5）+ 面板闭环（✂️剪这个/待剪栏+复制指令/▶小样预览复用 P12 弹层/任务分组/到位率提示）+ SKILL 去 AI 兜底+剪待剪剧本+挂成果规则 + AGENT_PROTOCOL v2（deliverables 追加白名单/cutQueue 只读）+ 剪映草稿 --only
+- 真项目 dry-run 揪出潜伏 bug: 剪映草稿 generate 不传 state 时 find_sidecar 元组未解包（服务端恒传 state 掩盖）；+51 测试全过；装位同步
+- 编号事故: 立项时与并行会话（S3-cover-skill）撞号，让位改 S4——journal 先说话再动盘的教训
+- 下一步: 用户面板点「✂️剪这个」+ 对话跑 --queue 真渲一个小样验收；8790 旧进程（v4）需重启换血 v5
+
+## [2026-11-07] 会话: S3 cover-skill 开发交付（A~E 全子步骤，与 S4 同日双交付）
+- 交付: skill/media/cover/（SKILL.md agent SOP+api 回退+红线；generate_cover.py Ark 化——双模式分析/--prompt-file/--prescan/候选链降级/错误人话/`.cover` 工作目录；上游 tarball 最新基线含 gemini-3.8 时代 prompt 演进+references 更新）+ media 门面路由（cover 行+触发词）+ tests/test_cover_skill.py 20 测，全仓 376 绿；装位同步 diff 一致
+- E2E（真实一期 R04_分屏并行_v2）: prescan 8 帧零 API → agent 读 cover-rules 挑 candidate_02 写 prompt → Seedream 5-0-flash-260915 三画幅直出 → 3x4/4x3 返工一次（CSS 数值被 Seedream 当文字渲染，旧图成套归档 v1-css-leak/）→ 全验收；产物 %TEMP%\cover_e2e
+- E2E 揪出三坑并闭环: ①Seedream 数值串泄漏——prompt/backfill 全面去 CSS 值 ②本机无 ffprobe——ffmpeg stderr Duration 行兜底 ③ffmpeg 不在 PATH——imageio_ffmpeg 二进制回落；旧 ~/.agents/skills/oil-cover 保留不删（用户改判：留着不影响）
+- 教训: 上游 prompt 骨架是给 gpt-image 系调的，换生图模型必须真渲验收再定稿；移植技能的第一性是"切成宿主能跑的"，本机依赖探测要进门就做
+- 下一步: 用户看 E2E 封面验收；真实项目直接 /media cover
