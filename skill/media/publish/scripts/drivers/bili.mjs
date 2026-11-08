@@ -8,7 +8,8 @@ const TITLE = "AI替我上网打工！当下最好用的 Agent 浏览器：ego l
 const DESC = "ego lite 是当下最好用的 Agent 浏览器：给浏览器装上手脚，让 Codex / ChatGPT / Claude Code 直接替你上网干活。本期实测：安装与登录保持、分屏并行干活、官方数据看板、还有让它自己去接「大肥鱼」任务的完整流程。搭配 ego-browser skill，AI 替你把网页上的活全干了。";
 const TAGS = ["ego", "Agent浏览器", "AI工具", "效率工具"];
 const blockers = [];
-const task = await taskSpace("fast-bili-e1-20261108");
+const SPACE = `fast-bili-${Date.now() % 1000000}`;
+const task = await taskSpace(SPACE);
 const page = task.page("p1");
 await page.goto("https://member.bilibili.com/platform/upload/video/frame", { timeout: 60000 });
 await page.waitForLoadState("load", { timeout: 30000 }).catch(() => {});
@@ -20,6 +21,7 @@ ts("页面就绪");
 // 上传：量上传区坐标 → 真鼠标点 → 选择器塞片
 const rc = await page.evaluate(
   "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && (n.textContent.trim()==='点击上传或将视频拖拽到此区域'||n.textContent.trim()==='上传视频')); if (!all.length) return null; const r = all[0].getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
+if (!rc) { console.log(JSON.stringify({ platform: "bilibili", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: "上传区没找到（页面状态不对）", blockers })); process.exit(0); }
 const chP = page.waitForFileChooser({ timeout: 20000 });
 await page.mouse.click(rc[0], rc[1], { label: "上传区" });
 (await chP).setFiles(VIDEO);
@@ -80,6 +82,10 @@ const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-bili-e1-2026
 ts("STOP 在「立即投稿」前");
 console.log(JSON.stringify({
   platform: "bilibili", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
-  screenshot: shot || "shotFailed", blockers,
+  screenshot: shot || "shotFailed", blockers, spaceName: SPACE,
   publishButton: "立即投稿（未点）",
 }));
+process.on("uncaughtException", (e) => {
+  console.log(JSON.stringify({ platform: "bilibili", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: String(e).slice(0, 120), blockers }));
+  process.exit(0);
+});
