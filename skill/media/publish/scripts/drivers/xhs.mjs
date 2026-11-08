@@ -105,10 +105,9 @@ try {
   else blockers.push("封面：塞了但缩略图未确认换成 CDN 图");
 } catch (e) { blockers.push("封面：" + String(e).slice(0, 60) + "（默认首帧兜底）"); }
 // STOP-BEFORE-PUBLISH
-const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-xhs-e1-20261108/final.png" }).catch(() => null);
 ts("STOP 在「发布」前");
 console.log(JSON.stringify({
   platform: "xhs", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
-  screenshot: shot || "shotFailed", blockers,
+  blockers,
   publishButton: "发布（未点）", topicsAttached,
 }));

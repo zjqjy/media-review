@@ -73,7 +73,7 @@
   ①话题联想行程序化点击/坐标点击都不挂芯片（手动 text="#词" 真点击可行）→ 主 agent 补挂
   ②抖音竖封面 image input 时序抖动 ③xhs 封面缩略图渲染时长不定（driver 已带 30s 等待环）
 - B站封面按用户口径只传 4x3（个人空间 16:9 平台派生）；抖音声明弹窗/封面编辑器在 driver 内 text= 坐标法可用
-- driver 末尾必出 JSON（ok/elapsedSec/screenshot/blockers）+ uncaughtException 兜底，任何失败都留人话报告
+- driver 末尾必出 JSON（ok/elapsedSec/blockers/topicsAttached + DOM 断言回读：标题/简介长度/声明/封面 CDN src）+ uncaughtException 兜底——**不截图**（窗口最小化是其默认态），表单正确性以 DOM 断言为准，全绿即报「可以发布」
 
 ## 并行子 agent 发布（默认启用，2026-11-08 用户点名）
 

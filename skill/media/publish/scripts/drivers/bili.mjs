@@ -103,11 +103,10 @@ try {
   else blockers.push("封面编辑器关不掉（完成按钮点不动）——阶段2前人工点一下完成");
 } catch (e) { blockers.push("封面双比例：" + String(e).slice(0, 60)); }
 // STOP-BEFORE-PUBLISH
-const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-bili-e1-20261108/final.png" }).catch(() => null);
 ts("STOP 在「立即投稿」前");
 console.log(JSON.stringify({
   platform: "bilibili", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
-  screenshot: shot || "shotFailed", blockers, spaceName: SPACE,
+  blockers, spaceName: SPACE,
   publishButton: "立即投稿（未点）",
 }));
 process.on("uncaughtException", (e) => {

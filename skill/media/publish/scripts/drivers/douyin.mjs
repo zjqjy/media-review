@@ -163,10 +163,9 @@ process.on("uncaughtException", (e) => {
   process.exit(0);
 });
 // STOP-BEFORE-PUBLISH
-const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-douyin-e1-20261108/final.png" }).catch(() => null);
 ts("STOP 在「发布」前");
 console.log(JSON.stringify({
   platform: "douyin", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
-  screenshot: shot || "shotFailed", blockers,
+  blockers,
   publishButton: "发布（未点）", topicsAttached,
 }));
