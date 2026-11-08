@@ -83,7 +83,7 @@ try {
       ts("横封面 4:3 ✓");
     } catch (e) { blockers.push("横封面：" + String(e).slice(0, 50)); }
     // 关编辑器（完成/确定）
-    await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+    await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定','保存'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
     await page.waitForTimeout(1500);
     // 竖封面口2
     const slot2 = await page.evaluate(
@@ -97,7 +97,7 @@ try {
       }
       if (ok2) { await page.waitForTimeout(2000); ts("竖封面 3:4 ✓"); }
       else blockers.push("竖封面：image input 5 次未就绪");
-      await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+      await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定','保存'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
       await page.waitForTimeout(1500);
     }
   } else blockers.push("封面：没找到选择封面入口（默认抽帧兜底）");
