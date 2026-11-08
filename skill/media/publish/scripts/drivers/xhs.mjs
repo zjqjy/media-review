@@ -83,7 +83,7 @@ try {
   await page.waitForTimeout(1000);
   // 视频处理中时容器点了没反应：点-等-查重试环（最多 ~35s）
   let ed = "closed";
-  for (let k = 0; k < 20 && ed !== "open"; k++) {
+  for (let k = 0; k < 10 && ed !== "open"; k++) {
     await page.waitForTimeout(6000);
     const st = await page.evaluate(
       "(() => { const el = document.querySelector('[class*=ai-cover-recommend]'); if (!el) return {rc: null, state: '容器不在'}; const r = el.getBoundingClientRect(); if (r.y < 0 || r.y > 700) return {rc: null, state: '在视口外 y=' + Math.round(r.y)}; const generating = el.textContent.includes('生成中'); return {rc: [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)], state: generating ? '生成中' : '就绪'}; })()");
@@ -94,7 +94,7 @@ try {
     await page.waitForTimeout(2500);
     ed = await page.evaluate("(() => document.querySelector('input[aria-label=\"上传封面图片\"]') ? 'open' : 'closed')");
   }
-  if (ed !== "open") throw new Error("编辑器120s没开（生成中/入口变化）");
+  if (ed !== "open") throw new Error("编辑器60s没开（生成中→agent 可见窗口补）");
   await page.setInputFiles('input[aria-label="上传封面图片"]', [COVER_34]);
   await page.waitForTimeout(3000);
   await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成' && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) { const rk = Object.keys(b).find(k => k.startsWith('__reactProps')); if (rk && typeof b[rk].onClick === 'function') b[rk].onClick({preventDefault(){},stopPropagation(){}}); else b.click(); } return 1; })()");
