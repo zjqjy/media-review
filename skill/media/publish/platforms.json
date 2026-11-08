@@ -18,7 +18,7 @@
       "declare_default": "内容由AI生成（同用户口径；2026-11-08 dry-run 已实选通过）",
       "declare_options": "「自主声明」弹窗单选：内容由AI生成/内容为个人观点或见解/内容为转载信息/内容含营销推广信息/虚构演绎仅供娱乐/无需添加自主声明",
       "cover_required": true,
-      "cover_hint": "「请设置封面后再发布」会挡发布；表单有 横封面4:3/竖封面3:4『选择封面』入口+AI智能推荐生成；AI 封面生成中可等或手选",
+      "cover_hint": "已破解（2026-11-08 实测通）：点任一「选择封面」口开编辑器（modal=dy-creator-content-modal）→ 编辑器**没有裸 file input**，入口是「上传封面」区块按钮（最小面积法定位：含『上传封面』文本 children≤3 的节点里取面积 300~50000 最小者中心，真鼠标点→waitForFileChooser→setFiles）→ 顶部页签切「设置横封面/设置竖封面」各传一张 → 点「保存」（不是完成/确定）。坑：填完话题后残留联想浮层会吃掉开编辑器的点击——先 Escape 再点，modal 未开就重试；AI 生成中状态下编辑器渲染慢，按钮要等待重试环",
       "publish_button": "发布设置区：谁可以看/发布时间（立即发布·定时发布）/「发布」；发布后提示『作品还在上传中请勿关闭页面』",
       "pitfalls": [
         "身份验证组件 uc_verification_component 只认整套原生事件序列（pointerover→pointerenter→pointerdown→mousedown→pointerup→mouseup→click），裸 click 不认——用 ego 真实鼠标动作",

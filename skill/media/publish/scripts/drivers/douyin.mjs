@@ -70,37 +70,48 @@ try {
   await page.waitForTimeout(800);
   ts("声明=内容由AI生成 ✓");
 } catch (e) { blockers.push("自主声明：" + String(e).slice(0, 50)); }
-// 封面双口（横4:3/竖3:4）——编辑器结构未校准，试一轮不硬闯
+// 封面：编辑器一开管双比例（顶部 设置横封面/设置竖封面 页签 + 「+ 上传封面」按钮，无裸 file input）
 try {
   const slot = await page.evaluate(
     "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='选择封面'); if (!all.length) return null; const el = all[0].parentElement; const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
-  if (slot) {
-    await page.mouse.click(slot[0], slot[1], { label: "选封面口1" });
-    await page.waitForTimeout(2000);
-    try {
-      await page.setInputFiles('input[type="file"][accept^="image"]', [COVER_43]);
+  if (!slot) throw new Error("没找到选择封面入口（默认抽帧兜底）");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(1000);
+  await page.mouse.click(slot[0], slot[1], { label: "开封面编辑器" });
+  await page.waitForTimeout(3000);
+  // 编辑器没开（浮层吃了点击）就重试两次
+  for (let k = 0; k < 2; k++) {
+    const open = await page.evaluate("(() => !!document.querySelector('[class*=dy-creator-content-modal-body]'))()");
+    if (open) break;
+    const rc2 = await page.evaluate(
+      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='选择封面'); if (!all.length) return null; const el = all[0].parentElement; el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
+    if (!rc2) break;
+    await page.mouse.click(rc2[0], rc2[1], { label: "重试开编辑器" });
+    await page.waitForTimeout(3000);
+  }
+  // 编辑器内：切页签 → 点「+ 上传封面」→ 选择器 → 塞图
+  async function uploadCoverTab(tabName, file) {
+    try { await page.click(`text="${tabName}"`); await page.waitForTimeout(1500); } catch (e) {}
+    let brc = null;
+    for (let k = 0; k < 5 && !brc; k++) {
       await page.waitForTimeout(2000);
-      ts("横封面 4:3 ✓");
-    } catch (e) { blockers.push("横封面：" + String(e).slice(0, 50)); }
-    // 关编辑器（完成/确定）
-    await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定','保存'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
-    await page.waitForTimeout(1500);
-    // 竖封面口2
-    const slot2 = await page.evaluate(
-      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='选择封面'); if (all.length < 2) return null; const el = all[1].parentElement; const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
-    if (slot2) {
-      await page.mouse.click(slot2[0], slot2[1], { label: "选封面口2" });
-      let ok2 = false;
-      for (let k = 0; k < 5 && !ok2; k++) {
-        await page.waitForTimeout(1500);
-        try { await page.setInputFiles('input[type="file"][accept^="image"]', [COVER_34]); ok2 = true; } catch (e) {}
-      }
-      if (ok2) { await page.waitForTimeout(2000); ts("竖封面 3:4 ✓"); }
-      else blockers.push("竖封面：image input 5 次未就绪");
-      await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['完成','确定','保存'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
-      await page.waitForTimeout(1500);
+      brc = await page.evaluate(
+        "(() => { const bs = Array.from(document.querySelectorAll('*')).filter(n => (n.textContent||'').replace(/\\s/g,'').includes('上传封面') && n.children.length <= 3).map(n => { const r = n.getBoundingClientRect(); return {r: [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)], area: r.width * r.height}; }).filter(x => x.area > 300 && x.area < 50000).sort((a,b) => a.area - b.area); return bs.length ? bs[0].r : null; })()");
     }
-  } else blockers.push("封面：没找到选择封面入口（默认抽帧兜底）");
+    if (!brc) throw new Error(tabName + "：上传封面按钮没找到");
+    const chP = page.waitForFileChooser({ timeout: 15000 });
+    await page.mouse.click(brc[0], brc[1], { label: "点上传封面" });
+    const ch = await chP;
+    await ch.setFiles(file);
+    await page.waitForTimeout(2500);
+  }
+  await uploadCoverTab("设置横封面", COVER_43);
+  ts("横封面 4:3 ✓");
+  await uploadCoverTab("设置竖封面", COVER_34);
+  ts("竖封面 3:4 ✓");
+  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['保存','完成','确定'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) { b.scrollIntoView({block:'center'}); b.click(); } return 1; })()");
+  await page.waitForTimeout(2000);
+  ts("封面已保存 ✓");
 } catch (e) { blockers.push("封面：" + String(e).slice(0, 60)); }
 process.on("uncaughtException", (e) => {
   console.log(JSON.stringify({ platform: "douyin", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: String(e).slice(0, 120), blockers }));
