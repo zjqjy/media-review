@@ -7,6 +7,7 @@ const TITLE = "AI替我上网打工！Agent浏览器";
 const DESC_MAIN = "🔥AI 真的替我上网打工了！\nAgent 浏览器 ego lite 实测：安装→登录保持→分屏并行→自动接任务，全程 AI 替我操作网页😎";
 const TOPICS = ["AI工具", "Agent", "浏览器", "效率神器", "ego"];
 const blockers = [];
+const topicsAttached = [];
 const SPACE = `fast-xhs-${Date.now() % 1000000}`;
 const task = await taskSpace(SPACE);
 const page = task.page("p1");
@@ -44,17 +45,20 @@ await page.waitForTimeout(400);
 await page.keyboard.type(DESC_MAIN + " ", { delay: 3 });
 for (const t of TOPICS) {
   await page.keyboard.type("#", { delay: 60 });
-  await page.waitForTimeout(1400);
-  let hit = false;
-  const rc = await page.evaluate(
-    (w) => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && (n.textContent.trim() === "#" + w || n.textContent.trim() === w)); if (!all.length) return null; const el = all[all.length - 1]; const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }, t);
-  if (rc && rc[1] > 0 && rc[1] < 800) {
-    await page.mouse.click(rc[0], rc[1], { label: "点话题联想行" });
-    hit = true;
-  } else {
-    try { await page.click(`text="#${t}"`); hit = true; } catch (e) {}
+  await page.waitForTimeout(1800);
+  // 重试环：联想行没渲染就再等 2s 重查（最小化渲染抖动）
+  // 联想策略：精确项优先，没有就点第一条推荐（模糊挂比不挂强），记录实际挂上的话题
+  let hit = null;
+  for (let k = 0; k < 2 && !hit; k++) {
+    if (k > 0) await page.waitForTimeout(2000);
+    hit = await page.evaluate(
+    (w) => { const rows = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && /^#[^#\s]{1,20}$/.test(n.textContent.trim()) && !n.closest('[contenteditable]') && n.getBoundingClientRect().width > 30); const exact = rows.find(n => n.textContent.trim() === "#" + w); const target = exact || rows[0]; if (!target) return null; target.click(); return target.textContent.trim(); }, t);
+    if (hit && hit.area === undefined) hit = String(hit);
+    if (hit) { topicsAttached.push(typeof hit === "string" ? hit : hit.txt); }
+    else { hit = null; }
   }
-  if (!hit) { await page.keyboard.type(t + " ", { delay: 15 }); blockers.push("话题[" + t + "]：联想没命中，退化为文字"); }
+  if (hit) { /* attached */ }
+  else { await page.keyboard.type(t + " ", { delay: 15 }); blockers.push("话题[" + t + "]：联想行没渲染，退化为文字"); }
   await page.waitForTimeout(700);
 }
 await page.keyboard.press("Escape");
@@ -72,21 +76,33 @@ try {
   if (opt === "ok") ts("声明=笔记含AI合成内容 ✓");
   else blockers.push("内容类型声明选项没找到（" + opt + "）");
 } catch (e) { blockers.push("声明：" + String(e).slice(0, 50)); }
-// 封面 DOM-only（最小化免疫）：编辑封面胶囊不过滤可见性直接 el.click()（JS handler 照样响应）
+// 封面（最小化免疫·实测通）：点 ai-cover-recommend 容器本体直接开编辑器（无需 hover/胶囊）
 try {
   await page.evaluate(
     "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='设置封面'); if (all.length) { let sec = all[0].parentElement; for (let d = 0; d < 5; d++) sec = sec.parentElement; sec.scrollIntoView({block:'center'}); } return 1; })()");
-  await page.waitForTimeout(800);
-  const pill = await page.evaluate(
-    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='编辑封面'); if (!all.length) return '不存在'; let ok = 0; for (const el of all) { try { el.click(); ok++; } catch (e) {} } return '点了' + ok + '个'; })()");
-  await page.waitForTimeout(2500);
-  const ed = await page.evaluate("(() => document.querySelector('input[aria-label=\"上传封面图片\"]') ? 'open' : 'closed')");
-  if (ed !== "open") throw new Error("编辑器没开（胶囊=" + pill + "）");
+  await page.waitForTimeout(1000);
+  // 视频处理中时容器点了没反应：点-等-查重试环（最多 ~35s）
+  let ed = "closed";
+  for (let k = 0; k < 20 && ed !== "open"; k++) {
+    await page.waitForTimeout(6000);
+    const st = await page.evaluate(
+      "(() => { const el = document.querySelector('[class*=ai-cover-recommend]'); if (!el) return {rc: null, state: '容器不在'}; const r = el.getBoundingClientRect(); if (r.y < 0 || r.y > 700) return {rc: null, state: '在视口外 y=' + Math.round(r.y)}; const generating = el.textContent.includes('生成中'); return {rc: [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)], state: generating ? '生成中' : '就绪'}; })()");
+    console.log(`[封面] 第${k + 1}次: ${st.state}`);
+    if (!st.rc) continue;
+    if (st.state === "生成中") continue;
+    await page.mouse.click(st.rc[0], st.rc[1], { label: "点封面容器开编辑器" });
+    await page.waitForTimeout(2500);
+    ed = await page.evaluate("(() => document.querySelector('input[aria-label=\"上传封面图片\"]') ? 'open' : 'closed')");
+  }
+  if (ed !== "open") throw new Error("编辑器120s没开（生成中/入口变化）");
   await page.setInputFiles('input[aria-label="上传封面图片"]', [COVER_34]);
   await page.waitForTimeout(3000);
-  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成' && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成' && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) { const rk = Object.keys(b).find(k => k.startsWith('__reactProps')); if (rk && typeof b[rk].onClick === 'function') b[rk].onClick({preventDefault(){},stopPropagation(){}}); else b.click(); } return 1; })()");
   await page.waitForTimeout(2500);
-  ts("封面 3x4 ✓（DOM-only，自动质检）");
+  const vfy = await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='设置封面'); let sec = all[0].parentElement; for (let d = 0; d < 5; d++) sec = sec.parentElement; const big = Array.from(sec.querySelectorAll('img')).map(i => (i.src||'')).sort((a,b) => b.length - a.length)[0]; return big.startsWith('http'); })()");
+  if (vfy) ts("封面 3x4 ✓（缩略图已换 CDN 图，最小化全程可用）");
+  else blockers.push("封面：塞了但缩略图未确认换成 CDN 图");
 } catch (e) { blockers.push("封面：" + String(e).slice(0, 60) + "（默认首帧兜底）"); }
 // STOP-BEFORE-PUBLISH
 const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-xhs-e1-20261108/final.png" }).catch(() => null);
@@ -94,5 +110,5 @@ ts("STOP 在「发布」前");
 console.log(JSON.stringify({
   platform: "xhs", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
   screenshot: shot || "shotFailed", blockers,
-  publishButton: "发布（未点）",
+  publishButton: "发布（未点）", topicsAttached,
 }));

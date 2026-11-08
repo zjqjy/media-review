@@ -8,6 +8,7 @@ const TITLE = "AI替我上网打工！Agent浏览器实测";
 const DESC_MAIN = "AI替我上网打工是什么体验？Agent 浏览器 ego lite 实测：安装到自动接任务全流程";
 const TOPICS = ["AI", "Agent", "浏览器", "效率工具"];
 const blockers = [];
+const topicsAttached = [];
 const SPACE = `fast-douyin-${Date.now() % 1000000}`;
 const task = await taskSpace(SPACE);
 const page = task.page("p1");
@@ -53,18 +54,12 @@ await page.waitForTimeout(500);
 await page.keyboard.type(DESC_MAIN + " ", { delay: 3 });
 for (const t of TOPICS) {
   await page.keyboard.type("#", { delay: 60 });
-  await page.waitForTimeout(1400);
-  let hit = false;
-  // 真坐标点击联想行（程序化 click 不被认）
-  const rc = await page.evaluate(
-    (w) => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && (n.textContent.trim() === w || n.textContent.trim() === "#" + w)); if (!all.length) return null; const el = all[all.length - 1]; const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }, t);
-  if (rc && rc[1] > 0 && rc[1] < 800) {
-    await page.mouse.click(rc[0], rc[1], { label: "点话题联想行" });
-    hit = true;
-  } else {
-    try { await page.click(`text="#${t}"`); hit = true; } catch (e) {}
-  }
-  if (!hit) { await page.keyboard.type(t, { delay: 20 }); blockers.push("话题[" + t + "]：联想没命中，已退化为正文文字"); }
+  await page.waitForTimeout(1800);
+  // 联想策略：精确词节点 el.click（最小化免疫），否则第一条推荐行（模糊挂比不挂强）
+  const hit = await page.evaluate(
+    (w) => { const rows = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && (n.textContent.trim() === w || n.textContent.trim() === "#" + w) && !n.closest('[contenteditable]') && n.getBoundingClientRect().width > 10); const exact = rows.find(n => n.textContent.trim() === w); const target = exact || rows[0]; if (!target) return null; target.click(); return target.textContent.trim(); }, t);
+  if (hit) { topicsAttached.push(hit); }
+  else { await page.keyboard.type(t, { delay: 20 }); blockers.push("话题[" + t + "]：联想行没渲染，已退化为正文文字"); }
   await page.waitForTimeout(700);
 }
 ts("简介+话题 ✓");
@@ -131,5 +126,5 @@ ts("STOP 在「发布」前");
 console.log(JSON.stringify({
   platform: "douyin", ok: true, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1),
   screenshot: shot || "shotFailed", blockers,
-  publishButton: "发布（未点）",
+  publishButton: "发布（未点）", topicsAttached,
 }));
