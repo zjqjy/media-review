@@ -179,3 +179,45 @@
 - 权限根治: ego Preferences 手术（geo+notifications 四域 block）——坑①优雅 taskkill 杀不干净，老进程带旧配置活着，必须 /F 强杀全家再重启②B站通知弹窗来自 www.bilibili.com 非 member 域③声明下拉只认真人事件，handOff 人工选是正解
 - 其他坑: xhs 正文编辑区被 <xhs-publish-btn> 浮层拦 pointer→focus()+keyboard 绕；fill 撞内嵌滚动区→scrollIntoView；ego 强杀丢 space 日志（按名字重建）；字符串 evaluate 是表达式不是函数
 - 待办: S6-E 首次真发（用户给成片+封面，确认单→真发→发布记录）→ /em verify s6 收尾；ego lite 有新版 0.6.2.8→升级待用户点头
+
+## [2026-11-08] 会话: S7-blog-gzh 立项（R0 五问 → R1 选 B → R2 五步拆分 → R3 落盘）
+- R0 实锤：博客现状=一次性手搓 AI 对话（输入 srt+个人网站知识库）；样例 ego-browser-tutorial 文风 OK（STYLE.md 产物）但正文零配图（7 个 img 全是站点挂件）；/em ask 命中维护手册卡（embedai.top=Hexo 8+Butterfly，发文五步，备案关站期只写不发）+反哺记录（STYLE.md+humanize 文风体系已有，images/<slug>/ 惯例）
+- 定音：方案 B 开源拼装优先（调研先行能引则引缺件自研）；选帧 AI 全自动人兜底；公众号止步存草稿群发人工点；文风调研升专门子步骤
+- 拆分：S7-A 三线调研评估卡 → B 博客图文管线（文风红线：外部引擎与 STYLE.md 冲突即 fallback）→ C 站点验收+装位同步 → D 公众号排版+ego 草稿驱动器（开源只进排版层）→ E 真一期 E2E
+- 边界：不 hexo deploy（备案期）、不公众号群发（人工点）、文风不重造轮子（STYLE.md+humanize 是终检底盘）
+
+## [2026-11-08] 会话: S8-video-shotcraft-test 立项（R0 两问 → R1 选 C 两段式 → R2 四步 → R3 落盘）
+- 调研: video-shotcraft 17.7k★ Remotion 代码动画（124 镜头卡/剪映导出/Motion Workbench），非生成模型每帧代码绘制；win untested（剪映导出）是最大风险；姊妹 talkcraft 顺带一眼不深评
+- R0: D 先不定集成（实测出结论、集成留下一步立项）+ C 两级测试（demo 冒烟+真素材）
+- R1: A 纯手动/B 技能化先行/C 两段式（手动冒烟清环境坑+技能化验集成体感）✅；退化预案=SKILL.md 在 zcode 跑不通即降手动并记录差距（本身就是报告证据）
+- R2: A 克隆摸底(S)→B Demo 冒烟(M)→C 真素材技能化(M-L，ego R06 文案)→D 报告+集成建议(S)
+- 边界: 不装全局不进 media/不接 shoot/产物只落测试目录/Upload-Post 不测；S7 号被占顺延改 S8（分配前重读总表纪律）
+
+## [2026-11-08] 会话: S7-blog-gzh A~C 交付 + D 构建（dry-run 待扫码，E 待终审）
+- S7-A 调研：三线结论用户全认可（①文风引擎全实验级弃引+ai_score.py 加签 ②引入 jiji262 html_converter+15 主题 MIT ③公众号 API 线死路实锤（草稿箱 API 需认证，个人主体无法认证）→ego 自研）评估卡 research-S7-A.md
+- S7-B/C 交付：blog 子技能（SKILL.md+5 脚本+vendor 11py/15 主题）+ tests/test_blog_pipeline.py 19 绿（全仓 492 绿）+ 真一期 dry-run：第5期点亮屏幕 → plan 旁车+5 帧实抽实核（逐帧 Read 肉眼验）+文章 esp32-lcd-ai-driver.md（ai_score 15.6/45 PASS）→ 站点 build+e2e 220 绿 → 定点 commit d637213（文章+帧图+契约）+装位 diff 一致
+- 实锤坑：①ego stdin vm 对非 async 箭头里的 await 直接 SyntaxError 无行号（bili 惯用法别混入）②站点数量契约：新文章顶红 pages.spec 工程笔记 6→7（follow-up 修契约），About 批红=并行负载抖动（单跑 9/9，维护手册有案）③站点 preview 页绝不进 source/（Hexo 原样发布）④ai_score --json 依赖 article_meta（闭包要收全）
+- S7-D：gzh_pack 三件套已产（标题 30/64、5 图 5 占位）+ drivers/gzh.mjs v1 跑通到登录闸门（掉登录 handOff JSON 零 blocker）；**dry-run 到存草稿卡扫码=用户门**
+- S7-E：真一期全链终审待用户（预览页 blog_preview/esp32-lcd-ai-driver.html + 文章 + 公众号草稿三处肉眼过）
+
+## [2026-11-08] 会话续: S8 A~D 一口气全交付（两级实测全过，报告落盘）
+- S8-A: 克隆 97M（直连挂死→7890 代理）+依赖摸底（node22/Chrome156/系统无 ffmpeg→Remotion 自带+imageio_ffmpeg 兜底）
+- S8-B: 模板 AiflPromo 36.22s 1080p 渲染 3.5min 三帧验优；剪映冒烟=仓库 smoke_test.py 是 Mac 专属→自写 win_smoke.py 平替 windows_draft.install，**三查全过=官方 win untested 风险实锤剪掉**（用户肉眼验收）
+- 坑#4 根治: Remotion 内置浏览器下载器不走代理（25MB 爬 25min≈16KB/s）且缓存按项目隔离无全局——代理 curl 拉 zip 118MB/11.7s（600 倍差）+place_headless.py 落位双层嵌套目录+VERSION，ensure 验证零下载；变通=--browser-executable 系统 Chrome
+- S8-C: 技能化走通（扫卡→读卡命门→移植 demo 源码），三卡 flying-words/list-reveal/before-after 适配 R06 文案 15s 一次渲通；中文两坑实踩（词表字号下调/角标宽度穿帮左移修复）
+- S8-D: 实测报告落 features/S8-video-shotcraft-test/；方向性发现=**video-talkcraft 才是口播正解**（节拍钉人声），shotcraft 卡库+aesthetic-rules 作共享资产；集成建议「只抽资产不改内核」留 S9 先实测 talkcraft
+- 产物位: 测试根 video-shotcraft-test/{video-shotcraft,r06-motion,scripts,pitfalls-win.md,chrome-headless-shell-win64.zip}；真素材 r06-motion/out/r06.mp4
+
+## [2026-11-08] 会话续2: S9-talkcraft-test 一口气交付（真素材核心链路全通）
+- 范围: 用户「talkcraft 实测」直接确认 S8 报告建议（轻档记账，不重走 R0）；克隆 66M 同构仓库
+- S9-A 摸底: Python3.14 雷区实锤——faster-whisper 1.2.1 × av15+ 不兼容（metadata_errors 移除，av14 无 cp314 wheel）→ run_tc.py monkeypatch shim 根治；zhconv/pypinyin 补装，faster-whisper/numpy/soundfile 本机已有；系统 ffmpeg 缺 → imageio 二进制顶 tools/bin（ffprobe 残留，gyan 两次超时）；junction 配方（ln -s 在 Git Bash=复制，workbench 占位文件先删再链）
+- S9-B: runtime 292 包一份依赖 + place_headless 复用（两库同需 chrome 149）+ workbench junction → 单帧冒烟 PASS
+- S9-C 真素材: 00_口播 73s 录音（只覆盖第1拍 3 句+含 v1.5 改稿痕迹，R06 无独立音频故弃）→ voice_trim 预剪 17 段 −23.46s（报告细到 skip:extra「一个免费的AI浏览器」）→ whisper 字级时间戳（match 0.84/0.89/0.97，听错字/幻觉段按设计标待人工）→ remotion 工程 junction runtime → 素排字幕+花字 EGO LITE 字级钉帧渲 49.8s 3.3MB；两轮修复（FlowerWord 无淡出多朵同位叠穿帮→只留一朵）
+- S9-D: 报告落 features/S9-talkcraft-test/；对比表+集成建议=motion 子技能内核定 talkcraft 方向（透明通道接 shoot 暂存区最短路径）；**许可红线 PolyForm Noncommercial 商用需授权，挂用户拍板**
+- 用户门: 看两支片（r06.mp4 / talks3.mp4）→ verify s8 s9 → 许可拍板 → S10 立项
+
+## [2026-11-08] 会话: S7-D 公众号驱动器攻坚（正文自动全通，插图转人工兜底）
+- 交付: drivers/gzh.mjs v2.5——登录→新建图文→标题/作者/摘要→正文原生粘贴→（SKIP_IMAGES=true 出干净占位符草稿 38.6s / false=自动插图）→存草稿→截图存证→自关窗；草稿箱可见草稿多轮实证，群发按钮全程未碰（S7-D 验证门达成，图片人工兜底）
+- 机制实锤（全部带痛换来）: ①ego 窗口标题=空间名（如 blog-gzh-459763）→win_window.ps1 v2 按标题作用域 restore/minimize/close(WM_CLOSE)，杀进程从流程移除（并行会话保护，用户点名批评后改的）②CDP page.cdp(method,params) 直调 Browser.setWindowBounds 还原/最小化自己窗口；强杀会留「ego 未正确关闭」崩溃弹窗③mp 编辑器=顶层 ProseMirror 非 ueditor iframe；PM 注入必须 ego keyboard.paste({text,html}) 原生粘贴（合成 ClipboardEvent 只进 8 字=placeholder widget 的字数，pms[last] 会抓到 widget，真 body 按 contenteditable!=false 过滤）④appmsg 直连必须带 token；登录判据=URL token+「新的创作」（后台首页也含「扫码登录」字样，文本判据假阴性害跑三轮）⑤插图：工具栏图片菜单的 input[type=file][accept*=gif] 直 setInputFiles 可落图+CDN 自动上传，但光标落位撕占位符留残渣+每图双份未解→人工兜底 ⑥ego 窗口一被最小化 Windows 冻结渲染：真鼠标/chooser/截图全死，DOM 级免疫（S6 契约复证）
+- 流程卫生: 驱动器 page.close 自关窗+取消取消残留=预清场用 WM_CLOSE 温和关（title 作用域）；草稿箱校准期攒 7+ 测试稿待用户批删
+- S7-E 待用户三处终审: ①选帧预览（换帧/删图兜底）②文章（已 commit d637213）③公众号草稿（blog-gzh-231904 传 5 图后终审）

@@ -1,0 +1,13 @@
+{
+  "feature": "S7-blog-gzh",
+  "title": "blog-gzh 发布后内容分发（博客图文教程 + 公众号存草稿）",
+  "current": "S7-E",
+  "updated": "2026-11-08",
+  "stages": {
+    "S7-A": "done",
+    "S7-B": "done",
+    "S7-C": "done",
+    "S7-D": "done(正文自动; 插图人工兜底)",
+    "S7-E": "pending-user"
+  }
+}
