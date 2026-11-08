@@ -13,6 +13,14 @@ const task = await taskSpace(SPACE);
 const page = task.page("p1");
 await page.goto("https://creator.douyin.com/creator-micro/content/upload", { timeout: 90000 });
 await page.waitForLoadState("load", { timeout: 30000 }).catch(() => {});
+// 窗口可见性闸门：最小化=渲染冻结，真点击/文件弹窗全部失效
+{
+  const vis = await page.evaluate("(() => ({w: window.innerWidth, h: window.innerHeight}))()");
+  if (vis.w === 0 || vis.h === 0) {
+    console.log(JSON.stringify({ platform: "douyin", ok: false, why: "ego 窗口最小化中——请还原窗口保持可见后再跑（渲染冻结会让点击/弹窗/截图全部失效）" }));
+    process.exit(0);
+  }
+}
 await page.waitForTimeout(4000);
 let s = await page.snapshot();
 if (s.includes("扫码登录")) { console.log(JSON.stringify({ platform: "douyin", ok: false, why: "掉登录", blockers })); process.exit(0); }

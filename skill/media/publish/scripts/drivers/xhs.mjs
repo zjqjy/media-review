@@ -12,6 +12,14 @@ const task = await taskSpace(SPACE);
 const page = task.page("p1");
 await page.goto("https://creator.xiaohongshu.com/publish/publish?from=menu&target=video", { timeout: 60000 });
 await page.waitForLoadState("load", { timeout: 30000 }).catch(() => {});
+// 窗口可见性闸门：最小化=渲染冻结，真点击/文件弹窗全部失效
+{
+  const vis = await page.evaluate("(() => ({w: window.innerWidth, h: window.innerHeight}))()");
+  if (vis.w === 0 || vis.h === 0) {
+    console.log(JSON.stringify({ platform: "xhs", ok: false, why: "ego 窗口最小化中——请还原窗口保持可见后再跑（渲染冻结会让点击/弹窗/截图全部失效）" }));
+    process.exit(0);
+  }
+}
 await page.waitForTimeout(2500);
 if ((await page.url()).includes("/login")) { console.log(JSON.stringify({ platform: "xhs", ok: false, why: "掉登录", blockers })); process.exit(0); }
 ts("页面就绪");
@@ -51,35 +59,34 @@ for (const t of TOPICS) {
 }
 await page.keyboard.press("Escape");
 ts("正文+话题 ✓");
-// 声明（内容设置区——下拉可能点不开，记 blocker 不硬闯）
+// 声明 DOM-only（最小化免疫）：原创声明开关 + 内容类型声明=笔记含AI合成内容（用户口径）
 try {
-  const declared = await page.evaluate(
-    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='原创声明'); if (!all.length) return 'none'; const tgl = all[all.length-1].parentElement.querySelector('[class*=switch],[role=switch],input[type=checkbox]'); if (tgl) { tgl.click(); return 'toggled'; } return 'noswitch'; })()");
-  if (declared !== "toggled") blockers.push("xhs 原创声明/内容类型声明：自动化未覆盖（known），阶段2前人工在内容设置区选 AI 相关项");
-  else ts("原创声明开关 ✓");
-} catch (e) { blockers.push("声明：" + String(e).slice(0, 40)); }
-// 封面：点首帧缩略图 → 编辑封面 → aria-label input → 完成
+  await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='原创声明'); if (!all.length) return; const tgl = all[all.length-1].parentElement.querySelector('[class*=switch],[role=switch],input[type=checkbox]'); if (tgl) tgl.click(); return 1; })()");
+  await page.waitForTimeout(600);
+  await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => (n.textContent||'').includes('内容类型声明')); if (!all.length) return; const el = all[all.length-1]; el.click(); return 1; })()");
+  await page.waitForTimeout(1200);
+  const opt = await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='笔记含AI合成内容'); if (!all.length) return 'no-opt'; const el = all[all.length-1]; el.click(); return 'ok'; })()");
+  if (opt === "ok") ts("声明=笔记含AI合成内容 ✓");
+  else blockers.push("内容类型声明选项没找到（" + opt + "）");
+} catch (e) { blockers.push("声明：" + String(e).slice(0, 50)); }
+// 封面 DOM-only（最小化免疫）：编辑封面胶囊不过滤可见性直接 el.click()（JS handler 照样响应）
 try {
-  let thumb = null;
-  for (let k = 0; k < 15; k++) {
-    thumb = await page.evaluate(
-      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='设置封面'); if (!all.length) return null; let sec = all[0].parentElement; for (let d = 0; d < 4; d++) sec = sec.parentElement; const img = sec.querySelector('img'); if (!img) return null; const r = img.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
-    if (thumb) break;
-    await page.waitForTimeout(2000);
-  }
-  if (!thumb) throw new Error("首帧缩略图30s未出现（视频处理中）");
-  await page.mouse.click(thumb[0], thumb[1], { label: "点首帧缩略图" });
-  await page.waitForTimeout(1500);
-  const editRc = await page.evaluate(
-    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='编辑封面'); if (!all.length) return null; const el = all[all.length-1].parentElement; const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
-  if (!editRc) throw new Error("编辑封面入口未浮出");
-  await page.mouse.click(editRc[0], editRc[1], { label: "编辑封面" });
-  await page.waitForTimeout(2000);
-  await page.setInputFiles('input[aria-label="上传封面图片"]', [COVER_34]);
+  await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='设置封面'); if (all.length) { let sec = all[0].parentElement; for (let d = 0; d < 5; d++) sec = sec.parentElement; sec.scrollIntoView({block:'center'}); } return 1; })()");
+  await page.waitForTimeout(800);
+  const pill = await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='编辑封面'); if (!all.length) return '不存在'; let ok = 0; for (const el of all) { try { el.click(); ok++; } catch (e) {} } return '点了' + ok + '个'; })()");
   await page.waitForTimeout(2500);
-  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成'); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
-  await page.waitForTimeout(1800);
-  ts("封面 3x4 ✓（自动质检）");
+  const ed = await page.evaluate("(() => document.querySelector('input[aria-label=\"上传封面图片\"]') ? 'open' : 'closed')");
+  if (ed !== "open") throw new Error("编辑器没开（胶囊=" + pill + "）");
+  await page.setInputFiles('input[aria-label="上传封面图片"]', [COVER_34]);
+  await page.waitForTimeout(3000);
+  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成' && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+  await page.waitForTimeout(2500);
+  ts("封面 3x4 ✓（DOM-only，自动质检）");
 } catch (e) { blockers.push("封面：" + String(e).slice(0, 60) + "（默认首帧兜底）"); }
 // STOP-BEFORE-PUBLISH
 const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-xhs-e1-20261108/final.png" }).catch(() => null);
