@@ -89,9 +89,18 @@ try {
   await page.setInputFiles('input[type="file"][accept^="image"]', [COVER_43]);
   await page.waitForTimeout(2000);
   ts("4:3 封面 ✓（用户口径：只传 4:3，16:9 平台派生）");
-  await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成'); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
-  await page.waitForTimeout(1500);
-  ts("封面编辑器已关");
+  // 关编辑器：「完成」只认真人事件，ego 真点击 + 关闭验证重试环
+  let closed = false;
+  for (let k = 0; k < 3 && !closed; k++) {
+    const brc = await page.evaluate(
+      "(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='完成' && b.offsetWidth > 0); if (!bs.length) return null; const el = bs[bs.length-1]; el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
+    if (brc) { await page.mouse.click(brc[0], brc[1], { label: "点完成" }); }
+    else { try { await page.click('text="完成"'); } catch (e) {} }
+    await page.waitForTimeout(1800);
+    closed = await page.evaluate("(() => !document.querySelector('input[type=\"file\"][accept^=\"image\"]').offsetParent && !Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim()==='完成' && b.offsetWidth > 0))()");
+  }
+  if (closed) ts("封面编辑器已关 ✓");
+  else blockers.push("封面编辑器关不掉（完成按钮点不动）——阶段2前人工点一下完成");
 } catch (e) { blockers.push("封面双比例：" + String(e).slice(0, 60)); }
 // STOP-BEFORE-PUBLISH
 const shot = await page.screenshot({ path: "C:/Users/23393/ego/fast-bili-e1-20261108/final.png" }).catch(() => null);
