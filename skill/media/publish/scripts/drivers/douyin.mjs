@@ -53,25 +53,52 @@ if (!dOk) blockers.push("简介编辑器没找到（文案又变了）");
 await page.waitForTimeout(500);
 await page.keyboard.type(DESC_MAIN + " ", { delay: 3 });
 for (const t of TOPICS) {
+  // 每话题前重聚焦正文+光标置尾（上一个芯片点击会抢焦点）
+  await page.evaluate(
+    "(() => { const els = Array.from(document.querySelectorAll('[contenteditable=true]')); const el = els.find(e => (e.textContent||'').length > 0) || els[0]; if (!el) return 1; el.focus(); const sel = window.getSelection(); const rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg); return 1; })()");
+  await page.waitForTimeout(400);
   await page.keyboard.type("#", { delay: 60 });
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(2500);
+  // 重试环：联想行没渲染就再等 2s 重查（最小化渲染抖动）
   // 联想策略：精确词节点 el.click（最小化免疫），否则第一条推荐行（模糊挂比不挂强）
-  const hit = await page.evaluate(
-    (w) => { const rows = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && (n.textContent.trim() === w || n.textContent.trim() === "#" + w) && !n.closest('[contenteditable]') && n.getBoundingClientRect().width > 10); const exact = rows.find(n => n.textContent.trim() === w); const target = exact || rows[0]; if (!target) return null; target.click(); return target.textContent.trim(); }, t);
-  if (hit) { topicsAttached.push(hit); }
-  else { await page.keyboard.type(t, { delay: 20 }); blockers.push("话题[" + t + "]：联想行没渲染，已退化为正文文字"); }
+  let hit = null;
+  for (let k = 0; k < 2 && !hit; k++) {
+    if (k > 0) {
+      // 二次尝试：重聚焦置尾 + 重打 # + 加长等待（首次联想没渲染的最常见原因）
+      await page.evaluate(
+        "(() => { const els = Array.from(document.querySelectorAll('[contenteditable=true]')); const el = els.find(e => (e.textContent||'').length > 0) || els[0]; if (!el) return 1; el.focus(); const sel = window.getSelection(); const rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg); return 1; })()");
+      await page.waitForTimeout(400);
+      await page.keyboard.type("#", { delay: 60 });
+      await page.waitForTimeout(3000);
+    }
+    hit = await page.evaluate(
+      (w) => { const rows = Array.from(document.querySelectorAll('*')).filter(n => n.children.length === 0 && (n.textContent.trim() === w || n.textContent.trim() === "#" + w) && !n.closest('[contenteditable]') && n.getBoundingClientRect().width > 10); const exact = rows.find(n => n.textContent.trim() === w); const target = exact || rows[0]; if (!target) return null; target.click(); return target.textContent.trim(); }, t);
+    if (hit) topicsAttached.push(String(hit));
+  }
+  if (!hit) { await page.keyboard.type(t, { delay: 20 }); blockers.push("话题[" + t + "]：联想两轮没渲染，已退化为正文文字"); }
   await page.waitForTimeout(700);
 }
 ts("简介+话题 ✓");
 // 自主声明 = 内容由AI生成
 try {
-  await page.click('text="请选择自主声明"');
+  let opened = false;
+  try { await page.click('text="请选择自主声明"'); opened = true; } catch (e) {
+    opened = await page.evaluate(
+      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='请选择自主声明'); if (!all.length) return false; all[all.length-1].click(); return true; })()");
+  }
+  await page.waitForTimeout(1200);
+  let picked = false;
+  try { await page.click('text="内容由AI生成"'); picked = true; } catch (e) {
+    picked = await page.evaluate(
+      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='内容由AI生成'); if (!all.length) return false; all[all.length-1].click(); return true; })()");
+  }
+  await page.waitForTimeout(600);
+  try { await page.click('text="确定"'); } catch (e) {
+    await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent.trim()==='确定' && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+  }
   await page.waitForTimeout(1000);
-  await page.click('text="内容由AI生成"');
-  await page.waitForTimeout(500);
-  await page.click('text="确定"');
-  await page.waitForTimeout(800);
-  ts("声明=内容由AI生成 ✓");
+  if (opened && picked) ts("声明=内容由AI生成 ✓");
+  else blockers.push("自主声明：opened=" + opened + " picked=" + picked);
 } catch (e) { blockers.push("自主声明：" + String(e).slice(0, 50)); }
 // 封面：编辑器一开管双比例（顶部 设置横封面/设置竖封面 页签 + 「+ 上传封面」按钮，无裸 file input）
 try {
@@ -113,8 +140,23 @@ try {
   await uploadCoverTab("设置竖封面", COVER_34);
   ts("竖封面 3:4 ✓");
   await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['保存','完成','确定'].includes(b.textContent.trim())); const b = bs[bs.length-1]; if (b) { b.scrollIntoView({block:'center'}); b.click(); } return 1; })()");
-  await page.waitForTimeout(2000);
-  ts("封面已保存 ✓");
+  await page.waitForTimeout(2500);
+  // 验证编辑器关闭；没关（保存键禁用期/同步等待）就 Esc×2 + 关闭图标 + 再保存，最多三轮
+  let editorOpen = true;
+  for (let k = 0; k < 3 && editorOpen; k++) {
+    editorOpen = await page.evaluate("(() => { const m = document.querySelector('[class*=dy-creator-content-modal-body]'); return !!m && m.getBoundingClientRect().height > 50; })()");
+    if (!editorOpen) break;
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(1200);
+    await page.evaluate("(() => { const closers = Array.from(document.querySelectorAll('[class*=close]')).filter(n => n.offsetWidth > 0 && n.getBoundingClientRect().y < 250); const c = closers[closers.length-1]; if (c) c.click(); return 1; })()");
+    await page.waitForTimeout(1500);
+    await page.evaluate("(() => { const bs = Array.from(document.querySelectorAll('button')).filter(b => ['保存','完成','确定'].includes(b.textContent.trim()) && b.offsetWidth > 0); const b = bs[bs.length-1]; if (b) b.click(); return 1; })()");
+    await page.waitForTimeout(2000);
+  }
+  if (editorOpen) blockers.push("封面编辑器未关闭（保存键禁用期，阶段2前人工点保存）");
+  else ts("封面已保存，编辑器已关 ✓");
 } catch (e) { blockers.push("封面：" + String(e).slice(0, 60)); }
 process.on("uncaughtException", (e) => {
   console.log(JSON.stringify({ platform: "douyin", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: String(e).slice(0, 120), blockers }));
