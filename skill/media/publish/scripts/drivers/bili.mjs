@@ -13,15 +13,31 @@ const task = await taskSpace(SPACE);
 const page = task.page("p1");
 await page.goto("https://member.bilibili.com/platform/upload/video/frame", { timeout: 60000 });
 await page.waitForLoadState("load", { timeout: 30000 }).catch(() => {});
+// 窗口可见性闸门：最小化=渲染冻结，真点击/文件弹窗全部失效
+{
+  const vis = await page.evaluate("(() => ({w: window.innerWidth, h: window.innerHeight}))()");
+  if (vis.w === 0 || vis.h === 0) {
+    console.log(JSON.stringify({ platform: "bili", ok: false, why: "ego 窗口最小化中——请还原窗口保持可见后再跑（渲染冻结会让点击/弹窗/截图全部失效）" }));
+    process.exit(0);
+  }
+}
 if ((await page.url()).includes("passport")) {
   console.log(JSON.stringify({ platform: "bilibili", ok: false, why: "掉登录", blockers }));
   process.exit(0);
 }
 ts("页面就绪");
-// 上传：量上传区坐标 → 真鼠标点 → 选择器塞片
-const rc = await page.evaluate(
-  "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && (n.textContent.trim()==='点击上传或将视频拖拽到此区域'||n.textContent.trim()==='上传视频')); if (!all.length) return null; const r = all[0].getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
-if (!rc) { console.log(JSON.stringify({ platform: "bilibili", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: "上传区没找到（页面状态不对）", blockers })); process.exit(0); }
+// 等 SPA 渲染出上传区（最长 60s）；若停在「投稿类型选择」壳页先点「视频投稿」
+let rc = null;
+for (let k = 0; k < 20 && !rc; k++) {
+  await page.waitForTimeout(3000);
+  rc = await page.evaluate(
+    "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && (n.textContent.trim()==='点击上传或将视频拖拽到此区域'||n.textContent.trim()==='上传视频')); if (!all.length) return null; const r = all[0].getBoundingClientRect(); return [Math.round(r.x + r.width/2), Math.round(r.y + r.height/2)]; })()");
+  if (!rc) {
+    await page.evaluate(
+      "(() => { const all = Array.from(document.querySelectorAll('*')).filter(n => n.children.length===0 && n.textContent.trim()==='视频投稿'); if (all.length) { const el = all[all.length-1]; el.click(); } return 1; })()");
+  }
+}
+if (!rc) { console.log(JSON.stringify({ platform: "bilibili", ok: false, elapsedSec: +((Date.now() - T0) / 1000).toFixed(1), why: "上传区60s没渲染出来", blockers })); process.exit(0); }
 const chP = page.waitForFileChooser({ timeout: 20000 });
 await page.mouse.click(rc[0], rc[1], { label: "上传区" });
 (await chP).setFiles(VIDEO);
